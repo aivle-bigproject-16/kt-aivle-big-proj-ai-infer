@@ -1,7 +1,7 @@
+import pytest
 from fastapi.testclient import TestClient
 
 import main
-import pytest
 
 
 client = TestClient(main.app)
@@ -19,6 +19,7 @@ def mock_image_download(monkeypatch):
         "download_image",
         lambda image_url: b"fake-image-bytes",
     )
+    monkeypatch.setattr(main, "perf_counter", lambda: 100.0)
 
 
 def test_pass_response(monkeypatch):
@@ -83,3 +84,16 @@ def test_fail_response(monkeypatch):
         "defects": [],
         "latency_ms": 0,
     }
+
+
+def test_latency_includes_internal_processing_time(monkeypatch):
+    ticks = iter([100.0, 100.125])
+    monkeypatch.setattr(main, "perf_counter", lambda: next(ticks))
+    monkeypatch.setattr(main, "LATENCY_MS", 0)
+    monkeypatch.setattr(main.CT_ADAPTER, "reject_rate", 0.0)
+    monkeypatch.setattr(main.CT_ADAPTER, "fail_rate", 0.0)
+
+    response = client.post("/infer/ct", json=REQUEST)
+
+    assert response.status_code == 200
+    assert response.json()["latency_ms"] == 125
