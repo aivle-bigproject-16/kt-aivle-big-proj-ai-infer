@@ -4,4 +4,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .coverage
-htmlcov/
+htmlcov/models/*.onnx
+*_onnx_verification.log
+/models/*.onnx
+/*_onnx_verification.log

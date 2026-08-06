@@ -12,10 +12,11 @@ class Settings:
 
 def load_settings() -> Settings:
     mode = os.getenv("INFERENCE_MODE", "stub").strip().lower()
+    allowed_modes = {"stub", "ct-quality-onnx", "onnx"}
 
-    if mode not in {"stub", "onnx"}:
+    if mode not in allowed_modes:
         raise ValueError(
-            "INFERENCE_MODE must be either 'stub' or 'onnx'"
+            "INFERENCE_MODE must be stub, ct-quality-onnx, or onnx"
         )
 
     return Settings(

@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py downloader.py adapters.py schemas.py settings.py adapter_factory.py ./
+COPY main.py downloader.py adapters.py schemas.py settings.py adapter_factory.py onnx_quality_ct.py ./
 
 EXPOSE 8000
 
