@@ -2,24 +2,21 @@ import os
 from time import perf_counter, sleep
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 
-from adapters import InferenceAdapter, StubAdapter
+from adapter_factory import build_adapter
+from adapters import InferenceAdapter
 from downloader import ImageDownloadError, download_image
+from schemas import InferRequest, InferResponse
+from settings import load_settings
 
 
 LATENCY_MS = int(os.getenv("STUB_LATENCY_MS", "800"))
+SETTINGS = load_settings()
 
 app = FastAPI(title="ai-infer")
 
-CT_ADAPTER = StubAdapter("ct")
-RGB_ADAPTER = StubAdapter("rgb")
-
-
-class InferRequest(BaseModel):
-    inspection_id: int
-    image_key: str
-    image_url: str
+CT_ADAPTER = build_adapter("ct", SETTINGS)
+RGB_ADAPTER = build_adapter("rgb", SETTINGS)
 
 
 def _infer(
@@ -36,10 +33,14 @@ def _infer(
             detail="failed to download inference image",
         ) from exc
 
-    sleep(LATENCY_MS / 1000)
+    if SETTINGS.inference_mode == "stub":
+        sleep(LATENCY_MS / 1000)
 
     prediction = adapter.predict(image_bytes)
-    latency_ms = max(0, round((perf_counter() - started_at) * 1000))
+    latency_ms = max(
+        0,
+        round((perf_counter() - started_at) * 1000),
+    )
 
     return {
         "inspection_id": req.inspection_id,
@@ -48,12 +49,12 @@ def _infer(
     }
 
 
-@app.post("/infer/ct")
+@app.post("/infer/ct", response_model=InferResponse)
 def infer_ct(req: InferRequest) -> dict:
     return _infer(req, CT_ADAPTER)
 
 
-@app.post("/infer/rgb")
+@app.post("/infer/rgb", response_model=InferResponse)
 def infer_rgb(req: InferRequest) -> dict:
     return _infer(req, RGB_ADAPTER)
 
@@ -62,6 +63,7 @@ def infer_rgb(req: InferRequest) -> dict:
 def health() -> dict:
     return {
         "status": "ok",
+        "mode": SETTINGS.inference_mode,
         "models": {
             "ct": True,
             "rgb": True,

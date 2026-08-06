@@ -18,16 +18,21 @@ class InferenceAdapter(Protocol):
         ...
 
 
-class StubAdapter:
-    def __init__(self, modality: str):
-        if modality not in {"ct", "rgb"}:
-            raise ValueError(f"unsupported modality: {modality}")
+class QualityAdapter(Protocol):
+    def predict_quality(self, image_bytes: bytes) -> dict:
+        ...
 
-        self.modality = modality
-        self.reject_rate = REJECT_RATE
-        self.fail_rate = FAIL_RATE
 
-    def predict(self, image_bytes: bytes) -> dict:
+class DefectAdapter(Protocol):
+    def predict_defects(self, image_bytes: bytes) -> dict:
+        ...
+
+
+class StubQualityAdapter:
+    def __init__(self, fail_rate: float = FAIL_RATE):
+        self.fail_rate = fail_rate
+
+    def predict_quality(self, image_bytes: bytes) -> dict:
         if not image_bytes:
             raise ValueError("image_bytes must not be empty")
 
@@ -35,8 +40,29 @@ class StubAdapter:
             return {
                 "label": "FAIL",
                 "confidence": 0.0,
-                "defects": [],
             }
+
+        return {
+            "label": "PASS",
+            "confidence": 1.0,
+        }
+
+
+class StubDefectAdapter:
+    def __init__(
+        self,
+        modality: str,
+        reject_rate: float = REJECT_RATE,
+    ):
+        if modality not in {"ct", "rgb"}:
+            raise ValueError(f"unsupported modality: {modality}")
+
+        self.modality = modality
+        self.reject_rate = reject_rate
+
+    def predict_defects(self, image_bytes: bytes) -> dict:
+        if not image_bytes:
+            raise ValueError("image_bytes must not be empty")
 
         if random.random() >= self.reject_rate:
             return {
@@ -70,3 +96,56 @@ class StubAdapter:
                 }
             ],
         }
+
+
+class InferencePipeline:
+    def __init__(
+        self,
+        quality_adapter: QualityAdapter,
+        defect_adapter: DefectAdapter,
+    ):
+        self.quality_adapter = quality_adapter
+        self.defect_adapter = defect_adapter
+
+    def predict(self, image_bytes: bytes) -> dict:
+        quality = self.quality_adapter.predict_quality(image_bytes)
+
+        if quality["label"] == "FAIL":
+            return {
+                "label": "FAIL",
+                "confidence": quality["confidence"],
+                "defects": [],
+            }
+
+        return self.defect_adapter.predict_defects(image_bytes)
+
+
+class StubAdapter:
+    """Compatibility facade over the split stub pipeline."""
+
+    def __init__(self, modality: str):
+        self.quality_adapter = StubQualityAdapter()
+        self.defect_adapter = StubDefectAdapter(modality)
+        self.pipeline = InferencePipeline(
+            quality_adapter=self.quality_adapter,
+            defect_adapter=self.defect_adapter,
+        )
+
+    @property
+    def fail_rate(self) -> float:
+        return self.quality_adapter.fail_rate
+
+    @fail_rate.setter
+    def fail_rate(self, value: float) -> None:
+        self.quality_adapter.fail_rate = value
+
+    @property
+    def reject_rate(self) -> float:
+        return self.defect_adapter.reject_rate
+
+    @reject_rate.setter
+    def reject_rate(self, value: float) -> None:
+        self.defect_adapter.reject_rate = value
+
+    def predict(self, image_bytes: bytes) -> dict:
+        return self.pipeline.predict(image_bytes)
