@@ -1,8 +1,4 @@
-from collections.abc import Callable
 from typing import Protocol
-
-
-SERVER_DEFECT_TYPES = {"CRACK", "SPOT"}
 
 
 class RgbFrameInspector(Protocol):
@@ -14,25 +10,18 @@ class RgbFrameInspector(Protocol):
         ...
 
 
-class RgbDefectTypeMappingRequired(RuntimeError):
-    """Raised when an OWLv2 tag has no approved server enum mapping."""
-
-
 class RgbOwlv2DefectAdapter:
     """Convert one OWLv2 frame result to the AI server contract.
 
-    The source model exposes six unverified Korean candidate tags while
-    the server contract accepts only CRACK and SPOT. A mapper is therefore
-    mandatory for defect responses and intentionally has no default.
+    The source model's Korean candidate tag is preserved as defectType.
+    This keeps the server response aligned with the current model output.
     """
 
     def __init__(
         self,
         inspector: RgbFrameInspector,
-        defect_type_mapper: Callable[[str], str] | None = None,
     ):
         self.inspector = inspector
-        self.defect_type_mapper = defect_type_mapper
 
     def predict_defects(self, image_bytes: bytes) -> dict:
         if not image_bytes:
@@ -76,21 +65,11 @@ class RgbOwlv2DefectAdapter:
         candidates = source.get("유형후보") or []
 
         if not candidates:
-            raise RgbDefectTypeMappingRequired(
+            raise ValueError(
                 "RGB defect has no source type candidate"
             )
 
-        if self.defect_type_mapper is None:
-            raise RgbDefectTypeMappingRequired(
-                "An approved RGB defect type mapping is required"
-            )
-
-        defect_type = self.defect_type_mapper(candidates[0])
-
-        if defect_type not in SERVER_DEFECT_TYPES:
-            raise ValueError(
-                "RGB defect mapper must return CRACK or SPOT"
-            )
+        defect_type = candidates[0]
 
         x1, y1, x2, y2 = source["위치"]["bbox"]
         confidence = float(source["_score"])
@@ -107,13 +86,10 @@ class RgbOwlv2DefectAdapter:
         }
 
 
-def build_rgb_owlv2_defect_adapter(
-    defect_type_mapper: Callable[[str], str] | None = None,
-) -> RgbOwlv2DefectAdapter:
+def build_rgb_owlv2_defect_adapter() -> RgbOwlv2DefectAdapter:
     """Build the real OWLv2 adapter without importing model code at startup."""
     from rgb_ext_infer import ExtInspector
 
     return RgbOwlv2DefectAdapter(
         inspector=ExtInspector(),
-        defect_type_mapper=defect_type_mapper,
     )
