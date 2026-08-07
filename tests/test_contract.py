@@ -1,10 +1,26 @@
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import TypeAdapter
 
 import main
+from schemas import DefectType
 
 
 client = TestClient(main.app)
+
+
+def test_rgb_model_defect_types_are_accepted_by_response_schema():
+    adapter = TypeAdapter(DefectType)
+    model_types = [
+        "녹·부식",
+        "벗겨짐·박리",
+        "파손·찢김",
+        "긁힘·스크래치",
+        "들뜸",
+        "오염·이물질",
+    ]
+
+    assert [adapter.validate_python(value) for value in model_types] == model_types
 
 REQUEST = {
     "inspection_id": 1,

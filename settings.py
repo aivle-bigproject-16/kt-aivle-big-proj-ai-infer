@@ -8,6 +8,7 @@ class Settings:
     ct_quality_model_path: str
     ct_defect_model_path: str
     rgb_quality_model_path: str
+    rgb_defect_model_dir: str
 
 
 def load_settings() -> Settings:
@@ -16,13 +17,14 @@ def load_settings() -> Settings:
         "stub",
         "ct-quality-onnx",
         "quality-onnx",
+        "rgb-onnx",
         "onnx",
     }
 
     if mode not in allowed_modes:
         raise ValueError(
             "INFERENCE_MODE must be stub, ct-quality-onnx, "
-            "quality-onnx, or onnx"
+            "quality-onnx, rgb-onnx, or onnx"
         )
 
     return Settings(
@@ -38,5 +40,9 @@ def load_settings() -> Settings:
         rgb_quality_model_path=os.getenv(
             "RGB_QUALITY_MODEL_PATH",
             "/models/quality_rgb.onnx",
+        ),
+        rgb_defect_model_dir=os.getenv(
+            "RGB_DEFECT_MODEL_DIR",
+            "/models/rgb_owlv2_onnx",
         ),
     )

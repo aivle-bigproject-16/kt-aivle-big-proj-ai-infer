@@ -9,6 +9,12 @@ DefectType = Literal[
     "SPOT",
     "MICRO_DEFECT",
     "CRACK",
+    "녹·부식",
+    "벗겨짐·박리",
+    "파손·찢김",
+    "긁힘·스크래치",
+    "들뜸",
+    "오염·이물질",
 ]
 
 
