@@ -5,6 +5,7 @@ from adapters import (
     StubDefectAdapter,
 )
 from onnx_quality_ct import OnnxCtQualityAdapter
+from onnx_quality_rgb import OnnxRgbQualityAdapter
 from settings import Settings
 
 
@@ -18,15 +19,25 @@ def build_adapter(
     if settings.inference_mode == "stub":
         return StubAdapter(modality)
 
-    if settings.inference_mode == "ct-quality-onnx":
+    if settings.inference_mode in {
+        "ct-quality-onnx",
+        "quality-onnx",
+    }:
         if modality == "ct":
-            return InferencePipeline(
-                quality_adapter=OnnxCtQualityAdapter(
-                    settings.ct_quality_model_path
-                ),
-                defect_adapter=StubDefectAdapter("ct"),
+            quality_adapter = OnnxCtQualityAdapter(
+                settings.ct_quality_model_path
             )
-        return StubAdapter("rgb")
+        elif settings.inference_mode == "quality-onnx":
+            quality_adapter = OnnxRgbQualityAdapter(
+                settings.rgb_quality_model_path
+            )
+        else:
+            return StubAdapter("rgb")
+
+        return InferencePipeline(
+            quality_adapter=quality_adapter,
+            defect_adapter=StubDefectAdapter(modality),
+        )
 
     raise RuntimeError(
         "INFERENCE_MODE=onnx was requested, but all ONNX "
