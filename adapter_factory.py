@@ -6,7 +6,7 @@ from adapters import (
 )
 from onnx_quality_ct import OnnxCtQualityAdapter
 from onnx_quality_rgb import OnnxRgbQualityAdapter
-from rgb_owlv2_defect import build_rgb_owlv2_onnx_defect_adapter
+from ct_defect_onnx import OnnxCtDefectAdapter
 from settings import Settings
 
 
@@ -20,6 +20,26 @@ def build_adapter(
     if settings.inference_mode == "stub":
         return StubAdapter(modality)
 
+    if settings.inference_mode == "ct-onnx":
+        if modality == "rgb":
+            return StubAdapter("rgb")
+
+        return InferencePipeline(
+            quality_adapter=OnnxCtQualityAdapter(
+                settings.ct_quality_model_path
+            ),
+            defect_adapter=OnnxCtDefectAdapter(
+                settings.ct_defect_model_path,
+                postprocess_type=settings.ct_postprocess_type,
+                postprocess_match_metric=(
+                    settings.ct_postprocess_match_metric
+                ),
+                postprocess_match_threshold=(
+                    settings.ct_postprocess_match_threshold
+                ),
+            ),
+        )
+
     if settings.inference_mode in {
         "ct-quality-onnx",
         "quality-onnx",
@@ -28,6 +48,10 @@ def build_adapter(
         if settings.inference_mode == "rgb-onnx":
             if modality == "ct":
                 return StubAdapter("ct")
+
+            from rgb_owlv2_defect import (
+                build_rgb_owlv2_onnx_defect_adapter,
+            )
 
             return InferencePipeline(
                 quality_adapter=OnnxRgbQualityAdapter(
