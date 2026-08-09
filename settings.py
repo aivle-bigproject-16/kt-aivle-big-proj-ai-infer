@@ -5,6 +5,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Settings:
     inference_mode: str
+    onnx_device: str
     ct_quality_model_path: str
     ct_defect_model_path: str
     rgb_quality_model_path: str
@@ -40,6 +41,10 @@ def load_settings() -> Settings:
             "CT_POSTPROCESS_TYPE must be NMS or GREEDYNMM"
         )
 
+    onnx_device = os.getenv("ONNX_DEVICE", "cpu").strip().lower()
+    if onnx_device not in {"cpu", "cuda"}:
+        raise ValueError("ONNX_DEVICE must be cpu or cuda")
+
     ct_postprocess_match_metric = os.getenv(
         "CT_POSTPROCESS_MATCH_METRIC",
         "IOS",
@@ -59,6 +64,7 @@ def load_settings() -> Settings:
 
     return Settings(
         inference_mode=mode,
+        onnx_device=onnx_device,
         ct_quality_model_path=os.getenv(
             "CT_QUALITY_MODEL_PATH",
             "/models/quality_ct.onnx",

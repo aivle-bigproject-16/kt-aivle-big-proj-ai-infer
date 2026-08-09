@@ -15,6 +15,7 @@ class OnnxCtDefectAdapter:
         postprocess_type: str = "NMS",
         postprocess_match_metric: str = "IOS",
         postprocess_match_threshold: float = 0.44,
+        device: str = "cpu",
         detection_model: Any | None = None,
         predictor: Callable[..., Any] | None = None,
     ):
@@ -35,7 +36,7 @@ class OnnxCtDefectAdapter:
                     task="segment",
                     image_size=1280,
                     confidence_threshold=0.05,
-                    device="cpu",
+                    device=device,
                     category_mapping={"0": "porosity"},
                 )
             if predictor is None:

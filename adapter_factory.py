@@ -10,12 +10,20 @@ from ct_defect_onnx import OnnxCtDefectAdapter
 from settings import Settings
 
 
+def _onnx_providers(device: str) -> list[str]:
+    if device == "cuda":
+        return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+    return ["CPUExecutionProvider"]
+
+
 def _build_ct_onnx_pipeline(
     settings: Settings,
 ) -> InferencePipeline:
+    providers = _onnx_providers(settings.onnx_device)
     return InferencePipeline(
         quality_adapter=OnnxCtQualityAdapter(
-            settings.ct_quality_model_path
+            settings.ct_quality_model_path,
+            providers=providers,
         ),
         defect_adapter=OnnxCtDefectAdapter(
             settings.ct_defect_model_path,
@@ -25,6 +33,11 @@ def _build_ct_onnx_pipeline(
             ),
             postprocess_match_threshold=(
                 settings.ct_postprocess_match_threshold
+            ),
+            device=(
+                "cuda:0"
+                if settings.onnx_device == "cuda"
+                else "cpu"
             ),
         ),
     )
@@ -39,10 +52,12 @@ def _build_rgb_onnx_pipeline(
 
     return InferencePipeline(
         quality_adapter=OnnxRgbQualityAdapter(
-            settings.rgb_quality_model_path
+            settings.rgb_quality_model_path,
+            providers=_onnx_providers(settings.onnx_device),
         ),
         defect_adapter=build_rgb_owlv2_onnx_defect_adapter(
-            settings.rgb_defect_model_dir
+            settings.rgb_defect_model_dir,
+            providers=_onnx_providers(settings.onnx_device),
         ),
     )
 

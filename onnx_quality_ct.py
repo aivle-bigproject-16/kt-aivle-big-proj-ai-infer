@@ -59,13 +59,14 @@ class OnnxCtQualityAdapter:
         self,
         model_path: str | Path,
         threshold: float = DEFAULT_THRESHOLD,
+        providers: list[str] | None = None,
         session=None,
     ):
         self.model_path = Path(model_path)
         self.threshold = threshold
         self.session = session or ort.InferenceSession(
             str(self.model_path),
-            providers=["CPUExecutionProvider"],
+            providers=providers or ["CPUExecutionProvider"],
         )
         self.input_name = self.session.get_inputs()[0].name
         self.output_name = self.session.get_outputs()[0].name

@@ -1,0 +1,22 @@
+FROM pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime
+
+WORKDIR /app
+
+COPY requirements-gpu-onnx.txt ./
+RUN pip install --no-cache-dir --timeout 1000 \
+      -r requirements-gpu-onnx.txt
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      libgl1 \
+      libglib2.0-0 \
+      libxcb1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY main.py downloader.py adapters.py schemas.py settings.py adapter_factory.py ./
+COPY onnx_quality_ct.py onnx_quality_rgb.py ct_defect_onnx.py ./
+COPY rgb_ext_infer.py rgb_ext_infer_onnx.py rgb_owlv2_defect.py ./
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

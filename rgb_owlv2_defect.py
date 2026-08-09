@@ -97,9 +97,13 @@ def build_rgb_owlv2_defect_adapter() -> RgbOwlv2DefectAdapter:
 
 def build_rgb_owlv2_onnx_defect_adapter(
     model_dir: str = "/models/rgb_owlv2_onnx",
+    providers=None,
 ) -> RgbOwlv2DefectAdapter:
     from rgb_ext_infer_onnx import OnnxExtInspector
 
     return RgbOwlv2DefectAdapter(
-        inspector=OnnxExtInspector(model_dir=model_dir),
+        inspector=OnnxExtInspector(
+            model_dir=model_dir,
+            providers=providers,
+        ),
     )

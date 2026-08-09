@@ -6,6 +6,7 @@ from settings import Settings
 def unified_settings() -> Settings:
     return Settings(
         inference_mode="onnx",
+        onnx_device="cpu",
         ct_quality_model_path="ct-quality.onnx",
         ct_defect_model_path="ct-defect.onnx",
         rgb_quality_model_path="rgb-quality.onnx",
@@ -22,7 +23,7 @@ def test_unified_onnx_mode_builds_ct_pipeline(monkeypatch):
 
     monkeypatch.setattr(
         "adapter_factory.OnnxCtQualityAdapter",
-        lambda path: ct_quality,
+        lambda path, **kwargs: ct_quality,
     )
     monkeypatch.setattr(
         "adapter_factory.OnnxCtDefectAdapter",
@@ -42,11 +43,11 @@ def test_unified_onnx_mode_builds_rgb_pipeline(monkeypatch):
 
     monkeypatch.setattr(
         "adapter_factory.OnnxRgbQualityAdapter",
-        lambda path: rgb_quality,
+        lambda path, **kwargs: rgb_quality,
     )
     monkeypatch.setattr(
         "rgb_owlv2_defect.build_rgb_owlv2_onnx_defect_adapter",
-        lambda path: rgb_defect,
+        lambda path, **kwargs: rgb_defect,
     )
 
     adapter = build_adapter("rgb", unified_settings())
@@ -54,3 +55,61 @@ def test_unified_onnx_mode_builds_rgb_pipeline(monkeypatch):
     assert isinstance(adapter, InferencePipeline)
     assert adapter.quality_adapter is rgb_quality
     assert adapter.defect_adapter is rgb_defect
+
+
+def test_cuda_mode_is_passed_to_all_onnx_adapters(monkeypatch):
+    settings = unified_settings()
+    settings = Settings(
+        **{
+            **settings.__dict__,
+            "onnx_device": "cuda",
+        }
+    )
+    calls = {}
+
+    def ct_quality(path, **kwargs):
+        calls["ct_quality"] = kwargs
+        return object()
+
+    def ct_defect(path, **kwargs):
+        calls["ct_defect"] = kwargs
+        return object()
+
+    def rgb_quality(path, **kwargs):
+        calls["rgb_quality"] = kwargs
+        return object()
+
+    def rgb_defect(path, **kwargs):
+        calls["rgb_defect"] = kwargs
+        return object()
+
+    monkeypatch.setattr(
+        "adapter_factory.OnnxCtQualityAdapter",
+        ct_quality,
+    )
+    monkeypatch.setattr(
+        "adapter_factory.OnnxCtDefectAdapter",
+        ct_defect,
+    )
+    monkeypatch.setattr(
+        "adapter_factory.OnnxRgbQualityAdapter",
+        rgb_quality,
+    )
+    monkeypatch.setattr(
+        "rgb_owlv2_defect.build_rgb_owlv2_onnx_defect_adapter",
+        rgb_defect,
+    )
+
+    build_adapter("ct", settings)
+    build_adapter("rgb", settings)
+
+    assert calls["ct_quality"]["providers"][0] == (
+        "CUDAExecutionProvider"
+    )
+    assert calls["ct_defect"]["device"] == "cuda:0"
+    assert calls["rgb_quality"]["providers"][0] == (
+        "CUDAExecutionProvider"
+    )
+    assert calls["rgb_defect"]["providers"][0] == (
+        "CUDAExecutionProvider"
+    )

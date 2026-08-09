@@ -3,6 +3,25 @@ import pytest
 from settings import load_settings
 
 
+def test_onnx_device_defaults_to_cpu(monkeypatch):
+    monkeypatch.delenv("ONNX_DEVICE", raising=False)
+
+    assert load_settings().onnx_device == "cpu"
+
+
+def test_onnx_device_accepts_cuda(monkeypatch):
+    monkeypatch.setenv("ONNX_DEVICE", "cuda")
+
+    assert load_settings().onnx_device == "cuda"
+
+
+def test_invalid_onnx_device_is_rejected(monkeypatch):
+    monkeypatch.setenv("ONNX_DEVICE", "gpu")
+
+    with pytest.raises(ValueError, match="ONNX_DEVICE"):
+        load_settings()
+
+
 def test_ct_postprocess_defaults_to_validated_onnx_candidate(monkeypatch):
     monkeypatch.delenv("CT_POSTPROCESS_TYPE", raising=False)
     monkeypatch.delenv("CT_POSTPROCESS_MATCH_METRIC", raising=False)
