@@ -5,6 +5,7 @@ param(
     [string]$RgbFixtureKey = "",
     [string]$CtFixtureSha256 = "",
     [string]$RgbFixtureSha256 = "",
+    [switch]$AllowRgbSmokeOnly,
     [string]$Profile = "default",
     [string]$Region = "ap-northeast-2"
 )
@@ -117,6 +118,11 @@ $ctHashBase64 = [Convert]::ToBase64String(
 $rgbHashBase64 = [Convert]::ToBase64String(
     [Text.Encoding]::UTF8.GetBytes($RgbFixtureSha256)
 )
+$rgbModeBase64 = [Convert]::ToBase64String(
+    [Text.Encoding]::UTF8.GetBytes(
+        $(if ($AllowRgbSmokeOnly) { "smoke" } else { "golden" })
+    )
+)
 
 $remoteScript = @'
 set -euo pipefail
@@ -125,6 +131,7 @@ CT_KEY="$(printf '%s' "$1" | base64 -d)"
 RGB_KEY="$(printf '%s' "$2" | base64 -d)"
 CT_SHA256="$(printf '%s' "$3" | base64 -d)"
 RGB_SHA256="$(printf '%s' "$4" | base64 -d)"
+RGB_MODE="$(printf '%s' "$5" | base64 -d)"
 REGION="ap-northeast-2"
 BUCKET="kt-aivle-big-proj-kks"
 BUNDLE="onnx-20260809-01"
@@ -234,7 +241,7 @@ fi
 
 cat /tmp/health.json
 
-export CT_URL RGB_URL
+export CT_URL RGB_URL RGB_MODE
 python3 - <<'PY'
 import json
 import os
@@ -278,8 +285,13 @@ for name in ("ct", "rgb"):
     assert isinstance(response["confidence"], (int, float))
     assert isinstance(response["defects"], list)
     assert isinstance(response["latency_ms"], int)
-    assert response["label"] == "REJECT", f"{name} defect model was not exercised"
-    assert response["defects"], f"{name} returned no defects"
+    if name == "ct" or os.environ["RGB_MODE"] == "golden":
+        assert response["label"] == "REJECT", f"{name} defect model was not exercised"
+        assert response["defects"], f"{name} returned no defects"
+    else:
+        assert response["label"] in {"PASS", "REJECT"}, "RGB quality stage returned FAIL"
+        if response["label"] == "REJECT":
+            assert response["defects"], "RGB REJECT returned no defects"
     for defect in response["defects"]:
         assert set(defect) == {"defectType", "confidence", "bbox"}
         assert isinstance(defect["defectType"], str)
@@ -289,7 +301,9 @@ for name in ("ct", "rgb"):
             isinstance(value, (int, float))
             for value in defect["bbox"].values()
         )
-print("CT and RGB API contract validation: PASS")
+print("CT golden and RGB API validation: PASS")
+if os.environ["RGB_MODE"] == "smoke":
+    print("RGB validation level: SMOKE ONLY (golden fixture pending)")
 PY
 
 echo "=== Recent server logs ==="
@@ -300,7 +314,7 @@ echo "GPU ONNX validation: PASS"
 $scriptBase64 = [Convert]::ToBase64String(
     [Text.Encoding]::UTF8.GetBytes($remoteScript)
 )
-$remoteCommand = "echo $scriptBase64 | base64 -d > /tmp/run-gpu-validation.sh && chmod 700 /tmp/run-gpu-validation.sh && sudo bash /tmp/run-gpu-validation.sh '$ctKeyBase64' '$rgbKeyBase64' '$ctHashBase64' '$rgbHashBase64'"
+$remoteCommand = "echo $scriptBase64 | base64 -d > /tmp/run-gpu-validation.sh && chmod 700 /tmp/run-gpu-validation.sh && sudo bash /tmp/run-gpu-validation.sh '$ctKeyBase64' '$rgbKeyBase64' '$ctHashBase64' '$rgbHashBase64' '$rgbModeBase64'"
 
 $parametersFile = Join-Path $env:TEMP "gpu-validation-ssm-parameters.json"
 $parameters = @{ commands = @($remoteCommand) } | ConvertTo-Json -Depth 5

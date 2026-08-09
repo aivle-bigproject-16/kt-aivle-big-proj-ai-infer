@@ -22,6 +22,7 @@ def test_gpu_validation_script_has_cost_and_target_guards():
     assert "CtImageUrl" not in text
     assert "RgbImageUrl" not in text
     assert "aws s3 presign" in text
+    assert "AllowRgbSmokeOnly" in text
 
 
 def test_gpu_validation_script_checks_gpu_models_and_both_apis():
@@ -49,6 +50,7 @@ def test_gpu_validation_script_checks_gpu_models_and_both_apis():
     assert 'if relative_path.is_absolute() or ".." in relative_path.parts' in text
     assert 'response["label"] == "REJECT"' in text
     assert 'assert response["defects"]' in text
+    assert "RGB validation level: SMOKE ONLY" in text
 
 
 def test_gpu_validation_script_dry_run_does_not_require_aws():
