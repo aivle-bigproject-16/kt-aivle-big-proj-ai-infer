@@ -11,3 +11,5 @@ htmlcov/models/*.onnx
 /*_onnx_verification.log
 /rgb_owlv2_onnx_validation*.json
 /scripts/.gpu-validation-instance-id
+/scripts/.gpu-validation-command-id
+/scripts/.gpu-validation-fixtures.json
