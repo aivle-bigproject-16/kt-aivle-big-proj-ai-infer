@@ -65,7 +65,7 @@ def load_settings() -> Settings:
         ),
         ct_defect_model_path=os.getenv(
             "CT_DEFECT_MODEL_PATH",
-            "/models/detect_ct.onnx",
+            "/models/defect_ct.onnx",
         ),
         rgb_quality_model_path=os.getenv(
             "RGB_QUALITY_MODEL_PATH",
