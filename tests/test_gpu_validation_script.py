@@ -53,6 +53,10 @@ def test_gpu_validation_script_checks_gpu_models_and_both_apis():
     assert "RGB validation level: SMOKE ONLY" in text
     assert "PYTHONIOENCODING=utf-8" in text
     assert "[Console]::OutputEncoding" in text
+    assert "=== Direct CT GPU probe ===" in text
+    assert "CT quality session providers:" in text
+    assert "=== Inference container logs ===" in text
+    assert 'CT API failed: curl=$ct_curl_exit http=$ct_http_status' in text
 
 
 def test_gpu_validation_script_dry_run_does_not_require_aws():

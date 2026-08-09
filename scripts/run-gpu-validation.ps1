@@ -146,6 +146,16 @@ IMAGE="825555019742.dkr.ecr.ap-northeast-2.amazonaws.com/kt-aivle-big-proj-ai-in
 CONTAINER="ai-infer-gpu-validation"
 FIXTURE_DIR="/opt/ai-infer/fixtures"
 
+on_exit() {
+  exit_code=$?
+  if sudo docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+    echo "=== Inference container logs ==="
+    sudo docker logs --tail 300 "$CONTAINER" 2>&1 || true
+  fi
+  exit "$exit_code"
+}
+trap on_exit EXIT
+
 echo "=== GPU ==="
 nvidia-smi
 
@@ -213,6 +223,43 @@ aws s3 cp "s3://${BUCKET}/${RGB_KEY}" "$FIXTURE_DIR/rgb-image" --region "$REGION
 printf '%s  %s\n' "$CT_SHA256" "$FIXTURE_DIR/ct-image" | sha256sum -c -
 printf '%s  %s\n' "$RGB_SHA256" "$FIXTURE_DIR/rgb-image" | sha256sum -c -
 
+echo "=== Direct CT GPU probe ==="
+sudo docker run --rm -i --gpus all \
+  -v "$MODEL_DIR:/models:ro" \
+  -v "$FIXTURE_DIR:/fixtures:ro" \
+  --entrypoint python \
+  "$IMAGE" - <<'PY'
+from pathlib import Path
+
+from ct_defect_onnx import OnnxCtDefectAdapter
+from onnx_quality_ct import OnnxCtQualityAdapter
+
+image_bytes = Path("/fixtures/ct-image").read_bytes()
+providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+
+quality = OnnxCtQualityAdapter(
+    "/models/quality_ct.onnx",
+    providers=providers,
+)
+print("CT quality session providers:", quality.session.get_providers())
+quality_result = quality.predict_quality(image_bytes)
+print("CT quality result:", quality_result)
+assert quality_result["label"] == "PASS", quality_result
+
+defect = OnnxCtDefectAdapter(
+    "/models/defect_ct.onnx",
+    postprocess_type="NMS",
+    postprocess_match_metric="IOS",
+    postprocess_match_threshold=0.44,
+    device="cuda:0",
+)
+defect_result = defect.predict_defects(image_bytes)
+print("CT defect result:", defect_result)
+assert defect_result["label"] == "REJECT", defect_result
+assert defect_result["defects"], defect_result
+print("Direct CT GPU probe: PASS")
+PY
+
 CT_URL="$(aws s3 presign "s3://${BUCKET}/${CT_KEY}" --region "$REGION" --expires-in 3600)"
 RGB_URL="$(aws s3 presign "s3://${BUCKET}/${RGB_KEY}" --region "$REGION" --expires-in 3600)"
 
@@ -233,7 +280,7 @@ sudo docker run -d \
 
 ready=0
 for attempt in $(seq 1 90); do
-  if curl -fsS http://127.0.0.1:8000/health >/tmp/health.json; then
+  if curl -fsS http://127.0.0.1:8000/health >/tmp/health.json 2>/dev/null; then
     ready=1
     break
   fi
@@ -266,16 +313,32 @@ Path("/tmp/rgb-request.json").write_text(json.dumps({
 PY
 
 echo "=== CT API ==="
-curl -fsS -X POST http://127.0.0.1:8000/infer/ct \
+set +e
+ct_http_status="$(curl -sS -o /tmp/ct-response.json -w '%{http_code}' \
+  -X POST http://127.0.0.1:8000/infer/ct \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/ct-request.json > /tmp/ct-response.json
+  --data-binary @/tmp/ct-request.json)"
+ct_curl_exit=$?
+set -e
 cat /tmp/ct-response.json
+if [ "$ct_curl_exit" -ne 0 ] || [ "$ct_http_status" != "200" ]; then
+  echo "CT API failed: curl=$ct_curl_exit http=$ct_http_status" >&2
+  exit 22
+fi
 
 echo "=== RGB API ==="
-curl -fsS -X POST http://127.0.0.1:8000/infer/rgb \
+set +e
+rgb_http_status="$(curl -sS -o /tmp/rgb-response.json -w '%{http_code}' \
+  -X POST http://127.0.0.1:8000/infer/rgb \
   -H 'Content-Type: application/json' \
-  --data-binary @/tmp/rgb-request.json > /tmp/rgb-response.json
+  --data-binary @/tmp/rgb-request.json)"
+rgb_curl_exit=$?
+set -e
 cat /tmp/rgb-response.json
+if [ "$rgb_curl_exit" -ne 0 ] || [ "$rgb_http_status" != "200" ]; then
+  echo "RGB API failed: curl=$rgb_curl_exit http=$rgb_http_status" >&2
+  exit 22
+fi
 
 python3 - <<'PY'
 import json
