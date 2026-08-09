@@ -9,6 +9,13 @@ RUN pip install --no-cache-dir --timeout 1000 \
     && pip install --no-cache-dir --timeout 1000 \
       -r requirements.txt
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      libgl1 \
+      libglib2.0-0 \
+      libxcb1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY main.py downloader.py adapters.py schemas.py settings.py adapter_factory.py onnx_quality_ct.py onnx_quality_rgb.py ct_defect_onnx.py ./
 
 EXPOSE 8000
