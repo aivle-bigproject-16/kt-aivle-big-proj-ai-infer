@@ -10,3 +10,4 @@ htmlcov/models/*.onnx
 /models/rgb_owlv2_onnx/
 /*_onnx_verification.log
 /rgb_owlv2_onnx_validation*.json
+/scripts/.gpu-validation-instance-id
