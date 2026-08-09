@@ -107,19 +107,23 @@ foreach ($volumeId in @($instance.Volumes)) {
         continue
     }
 
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     $volumeState = aws ec2 describe-volumes `
         --profile $Profile `
         --region $Region `
         --volume-ids $volumeId `
         --query "Volumes[0].State" `
         --output text 2>$null
+    $describeVolumeExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousErrorActionPreference
 
-    if ($LASTEXITCODE -eq 0 -and $volumeState -and $volumeState -ne "None") {
+    if ($describeVolumeExitCode -eq 0 -and $volumeState -and $volumeState -ne "None") {
         Write-Host "WARNING: volume still exists: $volumeId ($volumeState)" `
             -ForegroundColor Yellow
     }
 
-    if ($LASTEXITCODE -ne 0 -or -not $volumeState -or $volumeState -eq "None") {
+    if ($describeVolumeExitCode -ne 0 -or -not $volumeState -or $volumeState -eq "None") {
         Write-Host "Volume deletion confirmed: $volumeId" `
             -ForegroundColor Green
     }

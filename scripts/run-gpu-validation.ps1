@@ -11,6 +11,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+$OutputEncoding = [Text.UTF8Encoding]::new($false)
 
 $expectedName = "ai-infer-gpu-validation"
 $expectedType = "g6e.xlarge"
@@ -126,6 +128,10 @@ $rgbModeBase64 = [Convert]::ToBase64String(
 
 $remoteScript = @'
 set -euo pipefail
+
+export LANG=C.UTF-8
+export LC_ALL=C.UTF-8
+export PYTHONIOENCODING=utf-8
 
 CT_KEY="$(printf '%s' "$1" | base64 -d)"
 RGB_KEY="$(printf '%s' "$2" | base64 -d)"

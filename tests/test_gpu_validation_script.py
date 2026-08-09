@@ -51,6 +51,8 @@ def test_gpu_validation_script_checks_gpu_models_and_both_apis():
     assert 'response["label"] == "REJECT"' in text
     assert 'assert response["defects"]' in text
     assert "RGB validation level: SMOKE ONLY" in text
+    assert "PYTHONIOENCODING=utf-8" in text
+    assert "[Console]::OutputEncoding" in text
 
 
 def test_gpu_validation_script_dry_run_does_not_require_aws():
