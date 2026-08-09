@@ -235,6 +235,12 @@ sudo docker run --rm -i --gpus all \
   "$IMAGE" - <<'PY'
 from pathlib import Path
 
+import onnxruntime as ort
+import torch
+
+assert torch.cuda.is_available(), "PyTorch cannot access CUDA"
+ort.preload_dlls()
+
 from ct_defect_onnx import OnnxCtDefectAdapter
 from onnx_quality_ct import OnnxCtQualityAdapter
 

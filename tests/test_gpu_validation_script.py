@@ -59,6 +59,7 @@ def test_gpu_validation_script_checks_gpu_models_and_both_apis():
     assert '$env:AWS_CLI_FILE_ENCODING = "UTF-8"' in text
     assert "=== Direct CT GPU probe ===" in text
     assert "CT quality session providers:" in text
+    assert text.count("ort.preload_dlls()") >= 2
     assert "=== Inference container logs ===" in text
     assert 'CT API failed: curl=$ct_curl_exit http=$ct_http_status' in text
 
