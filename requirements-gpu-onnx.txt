@@ -4,7 +4,7 @@ pydantic==2.*
 httpx==0.28.*
 numpy==2.*
 pillow==12.*
-onnxruntime-gpu==1.28.0
+onnxruntime-gpu==1.26.0
 onnx==1.*
 sahi==0.12.5
 ultralytics==8.4.115

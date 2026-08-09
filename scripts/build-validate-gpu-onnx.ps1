@@ -32,4 +32,16 @@ if ($LASTEXITCODE -ne 0) {
     throw "GPU runtime validation failed."
 }
 
+Write-Host "`n=== Validate CUDA provider library preload ===" `
+    -ForegroundColor Cyan
+
+docker run --rm `
+    --entrypoint python `
+    $image `
+    -c "import ctypes, pathlib, torch, onnxruntime as ort; ort.preload_dlls(); provider = next(pathlib.Path(ort.__file__).parent.rglob('libonnxruntime_providers_cuda.so')); ctypes.CDLL(str(provider)); print('CUDA provider library preload: PASS')"
+
+if ($LASTEXITCODE -ne 0) {
+    throw "CUDA provider library preload validation failed."
+}
+
 Write-Host "`nUnified GPU ONNX image validation passed." -ForegroundColor Green

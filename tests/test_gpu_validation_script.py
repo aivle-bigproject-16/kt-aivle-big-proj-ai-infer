@@ -7,6 +7,8 @@ import pytest
 
 SCRIPT = Path("scripts/run-gpu-validation.ps1")
 UPLOAD_SCRIPT = Path("scripts/upload-gpu-validation-fixtures.ps1")
+GPU_RUNTIME = Path("gpu_runtime.py")
+GPU_DOCKERFILE = Path("Dockerfile.gpu-onnx")
 
 
 def test_gpu_validation_script_has_cost_and_target_guards():
@@ -38,7 +40,7 @@ def test_gpu_validation_script_checks_gpu_models_and_both_apis():
         "/infer/rgb",
         "model-manifest.json",
         "onnx-20260809-01",
-        "onnx-ff1eccd",
+        "onnx-cuda12-ort126",
     )
 
     for fragment in required_fragments:
@@ -53,6 +55,8 @@ def test_gpu_validation_script_checks_gpu_models_and_both_apis():
     assert "RGB validation level: SMOKE ONLY" in text
     assert "PYTHONIOENCODING=utf-8" in text
     assert "[Console]::OutputEncoding" in text
+    assert '$env:PYTHONUTF8 = "1"' in text
+    assert '$env:AWS_CLI_FILE_ENCODING = "UTF-8"' in text
     assert "=== Direct CT GPU probe ===" in text
     assert "CT quality session providers:" in text
     assert "=== Inference container logs ===" in text
@@ -95,3 +99,15 @@ def test_fixture_upload_is_guarded_and_verifies_remote_object():
     assert "ChecksumSHA256" in text
     assert "--checksum-algorithm SHA256" in text
     assert 'Encryption -ne "AES256"' in text
+
+
+def test_gpu_runtime_preloads_cuda_libraries_before_app_import():
+    runtime = GPU_RUNTIME.read_text(encoding="utf-8")
+    dockerfile = GPU_DOCKERFILE.read_text(encoding="utf-8")
+
+    assert "import torch" in runtime
+    assert "ort.preload_dlls()" in runtime
+    assert "ctypes.CDLL" in runtime
+    assert 'uvicorn.run("main:app"' in runtime
+    assert "COPY gpu_runtime.py ./" in dockerfile
+    assert 'CMD ["python", "gpu_runtime.py"]' in dockerfile

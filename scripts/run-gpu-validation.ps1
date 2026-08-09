@@ -13,6 +13,9 @@ param(
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $OutputEncoding = [Text.UTF8Encoding]::new($false)
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+$env:AWS_CLI_FILE_ENCODING = "UTF-8"
 
 $expectedName = "ai-infer-gpu-validation"
 $expectedType = "g6e.xlarge"
@@ -23,7 +26,7 @@ $bucket = "kt-aivle-big-proj-kks"
 $bundle = "onnx-20260809-01"
 $accountId = "825555019742"
 $repository = "kt-aivle-big-proj-ai-infer"
-$imageTag = "onnx-ff1eccd"
+$imageTag = "onnx-cuda12-ort126"
 $image = "${accountId}.dkr.ecr.${Region}.amazonaws.com/${repository}:${imageTag}"
 
 if ($Region -ne "ap-northeast-2") {
@@ -142,7 +145,7 @@ REGION="ap-northeast-2"
 BUCKET="kt-aivle-big-proj-kks"
 BUNDLE="onnx-20260809-01"
 MODEL_DIR="/opt/ai-infer/models"
-IMAGE="825555019742.dkr.ecr.ap-northeast-2.amazonaws.com/kt-aivle-big-proj-ai-infer:onnx-ff1eccd"
+IMAGE="825555019742.dkr.ecr.ap-northeast-2.amazonaws.com/kt-aivle-big-proj-ai-infer:onnx-cuda12-ort126"
 CONTAINER="ai-infer-gpu-validation"
 FIXTURE_DIR="/opt/ai-infer/fixtures"
 
@@ -208,6 +211,7 @@ import onnxruntime as ort
 import torch
 
 assert torch.cuda.is_available(), "PyTorch cannot access CUDA"
+ort.preload_dlls()
 providers = ort.get_available_providers()
 assert "CUDAExecutionProvider" in providers, providers
 print("GPU:", torch.cuda.get_device_name(0))
