@@ -273,6 +273,7 @@ cat /tmp/rgb-response.json
 
 python3 - <<'PY'
 import json
+import os
 from pathlib import Path
 
 for name in ("ct", "rgb"):

@@ -46,7 +46,7 @@ def test_gpu_validation_script_checks_gpu_models_and_both_apis():
 
     assert "aws ssm wait command-executed" not in text
     assert "for ($attempt = 1; $attempt -le 360" in text
-    assert 'if (-not $key.startswith(prefix))' in text
+    assert "if not key.startswith(prefix):" in text
     assert 'if relative_path.is_absolute() or ".." in relative_path.parts' in text
     assert 'response["label"] == "REJECT"' in text
     assert 'assert response["defects"]' in text
