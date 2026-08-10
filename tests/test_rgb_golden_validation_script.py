@@ -93,6 +93,15 @@ def test_staging_uses_the_existing_instance_role_readable_fixture_prefix():
     assert 'aws s3 cp "$LOG"' not in text
 
 
+def test_windows_zip_paths_are_normalized_during_linux_extraction():
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'member.filename.replace("\\\\", "/")' in text
+    assert 'destination.parent.mkdir(parents=True, exist_ok=True)' in text
+    assert 'shutil.copyfileobj(source, output)' in text
+    assert "zf.extractall(target)" not in text
+
+
 def test_region_is_pinned_before_paid_execution():
     text = SCRIPT.read_text(encoding="utf-8")
 

@@ -228,16 +228,23 @@ aws s3 cp "s3://${BUCKET}/${ARCHIVE_KEY}" "$WORK_DIR/fixtures.zip" --region "$RE
 python3 - "$WORK_DIR/fixtures.zip" "$WORK_DIR" <<'PY'
 import sys
 import zipfile
+import shutil
 from pathlib import Path
 
 archive = Path(sys.argv[1])
 target = Path(sys.argv[2]).resolve()
 with zipfile.ZipFile(archive) as zf:
     for member in zf.infolist():
-        destination = (target / member.filename).resolve()
+        normalized_name = member.filename.replace("\\", "/")
+        destination = (target / normalized_name).resolve()
         if target != destination and target not in destination.parents:
             raise RuntimeError(f"unsafe archive member: {member.filename}")
-    zf.extractall(target)
+        if member.is_dir() or normalized_name.endswith("/"):
+            destination.mkdir(parents=True, exist_ok=True)
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with zf.open(member) as source, destination.open("wb") as output:
+            shutil.copyfileobj(source, output)
 PY
 
 nvidia-smi
