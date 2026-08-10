@@ -10,6 +10,8 @@ param(
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $OutputEncoding = [Text.UTF8Encoding]::new($false)
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
 $env:AWS_CLI_FILE_ENCODING = "UTF-8"
 
 $repo = Split-Path -Parent $PSScriptRoot

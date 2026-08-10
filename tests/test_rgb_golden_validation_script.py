@@ -95,3 +95,12 @@ def test_region_is_pinned_before_paid_execution():
 
     assert 'if ($Region -ne "ap-northeast-2")' in text
     assert text.index('if ($Region -ne "ap-northeast-2")') < text.index("if (-not $Execute)")
+
+
+def test_windows_aws_cli_output_is_forced_to_utf8():
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert '$env:PYTHONUTF8 = "1"' in text
+    assert '$env:PYTHONIOENCODING = "utf-8"' in text
+    assert '$env:AWS_CLI_FILE_ENCODING = "UTF-8"' in text
+    assert "[Console]::OutputEncoding" in text
