@@ -4,11 +4,9 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .coverage
-htmlcov/models/*.onnx
+htmlcov/
+models/
 *_onnx_verification.log
-/models/*.onnx
-/models/rgb_owlv2_onnx/
-/*_onnx_verification.log
 /rgb_owlv2_onnx_validation*.json
 /scripts/.gpu-validation-instance-id
 /scripts/.gpu-validation-command-id

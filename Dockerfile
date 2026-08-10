@@ -2,13 +2,6 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir --timeout 1000 \
-      --index-url https://download.pytorch.org/whl/cpu \
-      torch==2.11.0 torchvision==0.26.0 \
-    && pip install --no-cache-dir --timeout 1000 \
-      -r requirements.txt
-
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
       libgl1 \
@@ -16,7 +9,17 @@ RUN apt-get update \
       libxcb1 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY main.py downloader.py adapters.py schemas.py settings.py adapter_factory.py onnx_quality_ct.py onnx_quality_rgb.py ct_defect_onnx.py ./
+COPY requirements.txt .
+RUN pip install --no-cache-dir --timeout 1000 \
+      --index-url https://download.pytorch.org/whl/cpu \
+      torch==2.11.0 torchvision==0.26.0 \
+    && pip install --no-cache-dir --timeout 1000 \
+      -r requirements.txt
+
+# 소스는 통째로 넣는다. 파일 단위로 나열하면 RGB 모듈이 빠진 채 발행되는
+# 사고가 재발한다. 이 이미지는 stub 과 CT ONNX 모드만 지원한다 —
+# RGB 실모델(transformers 의존)은 Dockerfile.gpu-onnx 담당이다.
+COPY *.py ./
 
 EXPOSE 8000
 

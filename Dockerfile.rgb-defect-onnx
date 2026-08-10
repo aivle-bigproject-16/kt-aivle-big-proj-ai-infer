@@ -5,9 +5,9 @@ WORKDIR /app
 COPY requirements-rgb-defect-onnx-runtime.txt ./
 RUN pip install --no-cache-dir -r requirements-rgb-defect-onnx-runtime.txt
 
-COPY main.py downloader.py adapters.py schemas.py settings.py adapter_factory.py ./
-COPY onnx_quality_ct.py onnx_quality_rgb.py ./
-COPY rgb_ext_infer.py rgb_ext_infer_onnx.py rgb_owlv2_defect.py ./
+# 소스는 통째로 넣는다. 파일 단위로 나열하면 모듈이 빠진 채 발행되는 사고가
+# 재발한다 (Dockerfile.rgb-defect-onnx 는 ct_defect_onnx.py 가 빠져 있었다).
+COPY *.py ./
 
 EXPOSE 8000
 
