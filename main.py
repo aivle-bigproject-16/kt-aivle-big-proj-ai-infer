@@ -1,13 +1,24 @@
 import logging
 import os
+import secrets
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from functools import partial
+from threading import BoundedSemaphore
 from time import perf_counter, sleep
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException, status
 
 from adapter_factory import build_adapter
 from adapters import InferenceAdapter
+from cell_analysis import process_cell_analysis
 from downloader import ImageDownloadError, download_image
-from schemas import InferRequest, InferResponse
+from schemas import (
+    CellAnalysisAccepted,
+    CellAnalysisRequest,
+    InferRequest,
+    InferResponse,
+)
 from settings import load_settings
 
 
@@ -34,6 +45,21 @@ def _build(modality: str) -> tuple[InferenceAdapter | None, str | None]:
 
 CT_ADAPTER, CT_ADAPTER_ERROR = _build("ct")
 RGB_ADAPTER, RGB_ADAPTER_ERROR = _build("rgb")
+ANALYSIS_EXECUTOR = ThreadPoolExecutor(
+    max_workers=int(os.getenv("CELL_ANALYSIS_WORKERS", "1")),
+    thread_name_prefix="cell-analysis",
+)
+ANALYSIS_CAPACITY = BoundedSemaphore(SETTINGS.cell_analysis_queue_size)
+
+
+def _analysis_finished(future) -> None:
+    ANALYSIS_CAPACITY.release()
+    error = future.exception()
+    if error is not None:
+        logger.error(
+            "cell analysis background task failed",
+            exc_info=(type(error), error, error.__traceback__),
+        )
 
 
 def _infer(
@@ -97,6 +123,67 @@ def infer_ct(req: InferRequest) -> dict:
 @app.post("/infer/rgb", response_model=InferResponse)
 def infer_rgb(req: InferRequest) -> dict:
     return _infer(req, RGB_ADAPTER, RGB_ADAPTER_ERROR)
+
+
+@app.post(
+    "/ai/cells/analyze",
+    response_model=CellAnalysisAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def analyze_cell(
+    req: CellAnalysisRequest,
+    x_internal_api_key: str | None = Header(default=None),
+) -> CellAnalysisAccepted:
+    if (
+        not SETTINGS.internal_api_key
+        or not x_internal_api_key
+        or not secrets.compare_digest(
+            x_internal_api_key,
+            SETTINGS.internal_api_key,
+        )
+    ):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+    if (
+        not SETTINGS.backend_callback_url
+        or req.callback_url != SETTINGS.backend_callback_url
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="callbackUrl does not match configured backend callback",
+        )
+
+    if not ANALYSIS_CAPACITY.acquire(blocking=False):
+        raise HTTPException(
+            status_code=503,
+            detail="cell analysis queue is full",
+        )
+
+    adapters = {"CT": CT_ADAPTER, "RGB": RGB_ADAPTER}
+    try:
+        future = ANALYSIS_EXECUTOR.submit(
+            partial(
+                process_cell_analysis,
+                req,
+                adapters,
+                SETTINGS.internal_api_key,
+                SETTINGS.callback_timeout_seconds,
+                SETTINGS.callback_max_attempts,
+            )
+        )
+    except Exception:
+        ANALYSIS_CAPACITY.release()
+        raise
+    future.add_done_callback(_analysis_finished)
+
+    return CellAnalysisAccepted(
+        accepted=True,
+        request_id=req.request_id,
+        inspection_id=req.inspection_id,
+        battery_cell_id=req.battery_cell_id,
+        status="ACCEPTED",
+        accepted_at=datetime.now(timezone.utc),
+    )
 
 
 def _adapter_detail(

@@ -17,6 +17,11 @@ class Settings:
     ct_postprocess_type: str
     ct_postprocess_match_metric: str
     ct_postprocess_match_threshold: float
+    internal_api_key: str = ""
+    callback_timeout_seconds: float = 10.0
+    callback_max_attempts: int = 3
+    backend_callback_url: str = ""
+    cell_analysis_queue_size: int = 4
     ct_defect_conf_threshold: float = DEFAULT_CONF_THRESHOLD
     ct_quality_threshold: float = CT_QUALITY_THRESHOLD
     rgb_quality_fail_threshold: float = RGB_QUALITY_FAIL_THRESHOLD
@@ -32,6 +37,20 @@ def _unit_interval_env(name: str, default: float) -> float:
     if not 0.0 <= value <= 1.0:
         raise ValueError(f"{name} must be between 0.0 and 1.0")
 
+    return value
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    value = int(os.getenv(name, str(default)))
+    if value < 1:
+        raise ValueError(f"{name} must be at least 1")
+    return value
+
+
+def _positive_float_env(name: str, default: float) -> float:
+    value = float(os.getenv(name, str(default)))
+    if not 0.0 < value < float("inf"):
+        raise ValueError(f"{name} must be finite and greater than 0")
     return value
 
 
@@ -114,6 +133,20 @@ def load_settings() -> Settings:
         ct_postprocess_type=ct_postprocess_type,
         ct_postprocess_match_metric=ct_postprocess_match_metric,
         ct_postprocess_match_threshold=ct_postprocess_match_threshold,
+        internal_api_key=os.getenv("AI_INTERNAL_API_KEY", ""),
+        callback_timeout_seconds=_positive_float_env(
+            "CALLBACK_TIMEOUT_SECONDS",
+            10.0,
+        ),
+        callback_max_attempts=_positive_int_env(
+            "CALLBACK_MAX_ATTEMPTS",
+            3,
+        ),
+        backend_callback_url=os.getenv("BACKEND_CALLBACK_URL", ""),
+        cell_analysis_queue_size=_positive_int_env(
+            "CELL_ANALYSIS_QUEUE_SIZE",
+            4,
+        ),
         ct_defect_conf_threshold=ct_defect_conf_threshold,
         ct_quality_threshold=ct_quality_threshold,
         rgb_quality_fail_threshold=rgb_quality_fail_threshold,

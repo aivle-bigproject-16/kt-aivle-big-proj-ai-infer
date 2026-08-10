@@ -1,5 +1,28 @@
 # kt-aivle-big-proj-ai-infer
 
+## Backend integration
+
+The backend calls `POST /ai/cells/analyze` with
+`X-Internal-Api-Key`. The AI server returns `202 Accepted`, reads the
+requested CT/RGB objects from S3, and posts the completed cell result to the
+configured backend callback URL.
+
+The backend API, backend AI gateway, and this service must use the same
+`AI_INTERNAL_API_KEY`. The AI server also requires the exact callback URL
+sent by the backend:
+
+```dotenv
+AI_INTERNAL_API_KEY=replace-with-the-shared-secret
+BACKEND_CALLBACK_URL=http://backend:8080/internal/ai/callbacks/cell
+CELL_ANALYSIS_WORKERS=1
+CELL_ANALYSIS_QUEUE_SIZE=4
+CALLBACK_TIMEOUT_SECONDS=10
+CALLBACK_MAX_ATTEMPTS=3
+```
+
+The runtime IAM role must allow `s3:GetObject` for every `bucketName` and
+`objectKey` that the backend includes in an analysis request.
+
 KT AIVLE 빅프로젝트 16조 AI 추론 서버입니다. 이미지 1장을 받아 `{ label, confidence, defects[] }`를 동기 반환합니다. 배치 오케스트레이션과 셀 판정은 BE 책임입니다.
 
 ## API
