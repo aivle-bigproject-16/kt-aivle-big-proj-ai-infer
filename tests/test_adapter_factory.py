@@ -1,4 +1,4 @@
-from adapters import InferencePipeline
+from adapters import InferencePipeline, StubAdapter
 from adapter_factory import build_adapter
 from settings import Settings
 
@@ -113,3 +113,96 @@ def test_cuda_mode_is_passed_to_all_onnx_adapters(monkeypatch):
     assert calls["rgb_defect"]["providers"][0] == (
         "CUDAExecutionProvider"
     )
+
+
+def test_quality_only_modes_still_receive_the_cuda_provider(monkeypatch):
+    settings = Settings(
+        **{
+            **unified_settings().__dict__,
+            "inference_mode": "quality-onnx",
+            "onnx_device": "cuda",
+        }
+    )
+    calls = {}
+
+    def record(name):
+        def build(path, **kwargs):
+            calls[name] = kwargs
+            return object()
+
+        return build
+
+    monkeypatch.setattr(
+        "adapter_factory.OnnxCtQualityAdapter",
+        record("ct_quality"),
+    )
+    monkeypatch.setattr(
+        "adapter_factory.OnnxRgbQualityAdapter",
+        record("rgb_quality"),
+    )
+
+    ct_adapter = build_adapter("ct", settings)
+    rgb_adapter = build_adapter("rgb", settings)
+
+    assert calls["ct_quality"]["providers"][0] == (
+        "CUDAExecutionProvider"
+    )
+    assert calls["rgb_quality"]["providers"][0] == (
+        "CUDAExecutionProvider"
+    )
+    assert isinstance(ct_adapter, InferencePipeline)
+    assert isinstance(rgb_adapter, InferencePipeline)
+
+
+def test_rgb_only_mode_keeps_ct_on_the_stub():
+    settings = Settings(
+        **{
+            **unified_settings().__dict__,
+            "inference_mode": "rgb-onnx",
+        }
+    )
+
+    assert isinstance(build_adapter("ct", settings), StubAdapter)
+
+
+def test_configured_thresholds_reach_the_onnx_adapters(monkeypatch):
+    settings = Settings(
+        **{
+            **unified_settings().__dict__,
+            "ct_defect_conf_threshold": 0.4,
+            "ct_quality_threshold": -0.2,
+            "rgb_quality_fail_threshold": 0.7,
+        }
+    )
+    calls = {}
+
+    def record(name):
+        def build(path, **kwargs):
+            calls[name] = kwargs
+            return object()
+
+        return build
+
+    monkeypatch.setattr(
+        "adapter_factory.OnnxCtQualityAdapter",
+        record("ct_quality"),
+    )
+    monkeypatch.setattr(
+        "adapter_factory.OnnxCtDefectAdapter",
+        record("ct_defect"),
+    )
+    monkeypatch.setattr(
+        "adapter_factory.OnnxRgbQualityAdapter",
+        record("rgb_quality"),
+    )
+    monkeypatch.setattr(
+        "rgb_owlv2_defect.build_rgb_owlv2_onnx_defect_adapter",
+        record("rgb_defect"),
+    )
+
+    build_adapter("ct", settings)
+    build_adapter("rgb", settings)
+
+    assert calls["ct_defect"]["conf_threshold"] == 0.4
+    assert calls["ct_quality"]["threshold"] == -0.2
+    assert calls["rgb_quality"]["fail_threshold"] == 0.7

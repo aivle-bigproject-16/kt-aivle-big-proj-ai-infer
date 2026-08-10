@@ -1,6 +1,10 @@
 import os
 from dataclasses import dataclass
 
+from ct_defect_onnx import DEFAULT_CONF_THRESHOLD
+from onnx_quality_ct import DEFAULT_THRESHOLD as CT_QUALITY_THRESHOLD
+from onnx_quality_rgb import FAIL_THRESHOLD as RGB_QUALITY_FAIL_THRESHOLD
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -13,6 +17,22 @@ class Settings:
     ct_postprocess_type: str
     ct_postprocess_match_metric: str
     ct_postprocess_match_threshold: float
+    ct_defect_conf_threshold: float = DEFAULT_CONF_THRESHOLD
+    ct_quality_threshold: float = CT_QUALITY_THRESHOLD
+    rgb_quality_fail_threshold: float = RGB_QUALITY_FAIL_THRESHOLD
+
+
+def _float_env(name: str, default: float) -> float:
+    return float(os.getenv(name, str(default)))
+
+
+def _unit_interval_env(name: str, default: float) -> float:
+    value = _float_env(name, default)
+
+    if not 0.0 <= value <= 1.0:
+        raise ValueError(f"{name} must be between 0.0 and 1.0")
+
+    return value
 
 
 def load_settings() -> Settings:
@@ -54,13 +74,23 @@ def load_settings() -> Settings:
             "CT_POSTPROCESS_MATCH_METRIC must be IOU or IOS"
         )
 
-    ct_postprocess_match_threshold = float(
-        os.getenv("CT_POSTPROCESS_MATCH_THRESHOLD", "0.44")
+    ct_postprocess_match_threshold = _unit_interval_env(
+        "CT_POSTPROCESS_MATCH_THRESHOLD",
+        0.44,
     )
-    if not 0.0 <= ct_postprocess_match_threshold <= 1.0:
-        raise ValueError(
-            "CT_POSTPROCESS_MATCH_THRESHOLD must be between 0.0 and 1.0"
-        )
+    ct_defect_conf_threshold = _unit_interval_env(
+        "CT_DEFECT_CONF_THRESHOLD",
+        DEFAULT_CONF_THRESHOLD,
+    )
+    rgb_quality_fail_threshold = _unit_interval_env(
+        "RGB_QUALITY_FAIL_THRESHOLD",
+        RGB_QUALITY_FAIL_THRESHOLD,
+    )
+    # CT 품질 모델은 확률이 아니라 로짓을 비교하므로 [0,1] 제약을 걸지 않는다.
+    ct_quality_threshold = _float_env(
+        "CT_QUALITY_THRESHOLD",
+        CT_QUALITY_THRESHOLD,
+    )
 
     return Settings(
         inference_mode=mode,
@@ -84,4 +114,7 @@ def load_settings() -> Settings:
         ct_postprocess_type=ct_postprocess_type,
         ct_postprocess_match_metric=ct_postprocess_match_metric,
         ct_postprocess_match_threshold=ct_postprocess_match_threshold,
+        ct_defect_conf_threshold=ct_defect_conf_threshold,
+        ct_quality_threshold=ct_quality_threshold,
+        rgb_quality_fail_threshold=rgb_quality_fail_threshold,
     )
