@@ -110,5 +110,5 @@ def test_gpu_runtime_preloads_cuda_libraries_before_app_import():
     assert "ort.preload_dlls()" in runtime
     assert "ctypes.CDLL" in runtime
     assert 'uvicorn.run("main:app"' in runtime
-    assert "COPY gpu_runtime.py ./" in dockerfile
+    assert "COPY *.py ./" in dockerfile
     assert 'CMD ["python", "gpu_runtime.py"]' in dockerfile
