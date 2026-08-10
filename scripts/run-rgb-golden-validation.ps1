@@ -270,21 +270,30 @@ exit "$validation_exit"
         throw "RGB golden validation did not finish within 90 minutes."
     }
 
-    $invocation = aws ssm get-command-invocation `
+    $responseCode = aws ssm get-command-invocation `
         --profile $Profile --region $Region `
-        --command-id $commandId --instance-id $instanceId --output json | ConvertFrom-Json
+        --command-id $commandId --instance-id $instanceId `
+        --query "ResponseCode" --output text
+    $standardOutput = aws ssm get-command-invocation `
+        --profile $Profile --region $Region `
+        --command-id $commandId --instance-id $instanceId `
+        --query "StandardOutputContent" --output text | Out-String
+    $standardError = aws ssm get-command-invocation `
+        --profile $Profile --region $Region `
+        --command-id $commandId --instance-id $instanceId `
+        --query "StandardErrorContent" --output text | Out-String
     $diagnostic = @(
-        "Status: $($invocation.Status)",
-        "ResponseCode: $($invocation.ResponseCode)",
+        "Status: $status",
+        "ResponseCode: $responseCode",
         "--- STDOUT ---",
-        [string]$invocation.StandardOutputContent,
+        [string]$standardOutput,
         "--- STDERR ---",
-        [string]$invocation.StandardErrorContent
+        [string]$standardError
     ) -join "`r`n"
     Set-Content -LiteralPath $ReportPath -Value $diagnostic -Encoding UTF8
 
-    Write-Host $invocation.StandardOutputContent
-    if ($invocation.StandardErrorContent) { Write-Warning $invocation.StandardErrorContent }
+    Write-Host $standardOutput
+    if ($standardError.Trim()) { Write-Warning $standardError }
 
     if ($status -ne "Success") {
         throw "RGB golden validation failed with SSM status $status. SSM stdout/stderr: $ReportPath"

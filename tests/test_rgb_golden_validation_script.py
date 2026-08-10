@@ -67,6 +67,9 @@ def test_failure_diagnostics_are_saved_before_cleanup():
     assert "ResponseCode" in text
     assert "Set-Content -LiteralPath $ReportPath" in text
     assert "$ReportPath.lifecycle.log" in text
+    assert "--output json | ConvertFrom-Json" not in text
+    assert '--query "StandardOutputContent" --output text' in text
+    assert '--query "StandardErrorContent" --output text' in text
 
     mkdir = text.index('sudo mkdir -p "$WORK_DIR"')
     logging = text.index('exec > >(tee -a "$LOG") 2>&1')
