@@ -374,6 +374,9 @@ class ExtInspector:
             '판정_신뢰': '높음',
             '판정_근거': {'임계': c.thr_gate, '박스수': n_gate, '기준': f'{c.n_gate}개 이상'},
             '셀_크롭': {'오프셋': [ox, oy], '크기': list(crop.size), '추정성공': bool(ok)},
+            # 판정에 쓰지 않는 부가 필드. AI 서버가 계약 A-4(PASS 신뢰도 =
+            # 1 - 임계 미만 최고 점수)를 계산하는 데만 쓴다.
+            '_max_score': round(max((b[4] for b in boxes), default=0.0), 4),
             '결함': [],
         }
         if not flag:
@@ -381,7 +384,15 @@ class ExtInspector:
         cb = cell_box_px(crop)
         ch = max(cb[3] - cb[1], 1)
         ca = max((cb[2] - cb[0]) * ch, 1)
-        for b in [x for x in boxes if x[4] >= c.thr_loc][:c.max_defects]:
+        picked = [x for x in boxes if x[4] >= c.thr_loc][:c.max_defects]
+        # 🔴 게이트는 결함이라 판정했는데 thr_loc 을 넘긴 박스가 하나도 없을 수 있다
+        #    (thr_gate 0.10 ~ thr_loc 0.12 사이 박스만 n_gate 개). 그대로 두면 결함
+        #    0개짜리 REJECT 가 나가 BE 계약(REJECT = 결함 N행)이 깨진다.
+        #    → 게이트를 통과한 박스 중 최고점 1개를 위치 근거로 승격한다.
+        #    boxes 는 score 내림차순이므로 앞에서 1개 자르면 최고점이다.
+        if not picked:
+            picked = [x for x in boxes if x[4] >= c.thr_gate][:1]
+        for b in picked:
             x0 = max(0, int(b[0])); y0 = max(0, int(b[1]))
             x1 = min(crop.width, int(b[2]) + 1); y1 = min(crop.height, int(b[3]) + 1)
             if x1 <= x0 or y1 <= y0:
