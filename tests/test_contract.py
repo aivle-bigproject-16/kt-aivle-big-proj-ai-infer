@@ -1,26 +1,36 @@
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 import main
+from rgb_owlv2_defect import TAG_TO_DEFECT_TYPE
 from schemas import DefectType
 
 
 client = TestClient(main.app)
 
 
-def test_rgb_model_defect_types_are_accepted_by_response_schema():
+def test_response_schema_accepts_only_the_four_contract_codes():
     adapter = TypeAdapter(DefectType)
-    model_types = [
-        "녹·부식",
-        "벗겨짐·박리",
-        "파손·찢김",
-        "긁힘·스크래치",
-        "들뜸",
-        "오염·이물질",
-    ]
+    contract_codes = ["SWELLING", "SPOT", "MICRO_DEFECT", "CRACK"]
 
-    assert [adapter.validate_python(value) for value in model_types] == model_types
+    assert [
+        adapter.validate_python(value) for value in contract_codes
+    ] == contract_codes
+
+
+def test_response_schema_rejects_raw_model_labels():
+    adapter = TypeAdapter(DefectType)
+
+    with pytest.raises(ValidationError):
+        adapter.validate_python("녹·부식")
+
+
+def test_every_rgb_tag_maps_into_the_contract_codes():
+    adapter = TypeAdapter(DefectType)
+
+    for defect_type in TAG_TO_DEFECT_TYPE.values():
+        assert adapter.validate_python(defect_type) == defect_type
 
 REQUEST = {
     "inspection_id": 1,
