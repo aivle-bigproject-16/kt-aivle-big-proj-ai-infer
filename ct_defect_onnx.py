@@ -5,6 +5,14 @@ from typing import Any
 from PIL import Image
 
 
+# SAHI 가 박스를 회수하는 하한. 이 아래는 애초에 후보로도 안 잡힌다.
+RETRIEVAL_THRESHOLD = 0.05
+
+# 결함으로 채택할 점수. RETRIEVAL_THRESHOLD 와 같으면 후보 = 채택이라
+# 계약 A-4 의 "임계값 미만 최고 점수"가 늘 비고 PASS 신뢰도는 1.0 이 된다.
+DEFAULT_CONF_THRESHOLD = 0.05
+
+
 class OnnxCtDefectAdapter:
     """Run the CT segmentation ONNX model through SAHI."""
 
@@ -15,6 +23,7 @@ class OnnxCtDefectAdapter:
         postprocess_type: str = "NMS",
         postprocess_match_metric: str = "IOS",
         postprocess_match_threshold: float = 0.44,
+        conf_threshold: float = DEFAULT_CONF_THRESHOLD,
         device: str = "cpu",
         detection_model: Any | None = None,
         predictor: Callable[..., Any] | None = None,
@@ -24,6 +33,7 @@ class OnnxCtDefectAdapter:
         self.postprocess_match_threshold = (
             postprocess_match_threshold
         )
+        self.conf_threshold = conf_threshold
 
         if detection_model is None or predictor is None:
             from sahi import AutoDetectionModel
@@ -35,7 +45,10 @@ class OnnxCtDefectAdapter:
                     model_path=model_path,
                     task="segment",
                     image_size=1280,
-                    confidence_threshold=0.05,
+                    confidence_threshold=min(
+                        RETRIEVAL_THRESHOLD,
+                        conf_threshold,
+                    ),
                     device=device,
                     category_mapping={"0": "porosity"},
                 )
@@ -70,6 +83,8 @@ class OnnxCtDefectAdapter:
             )
 
         defects = []
+        rejected_scores = []
+
         for item in prediction.object_prediction_list:
             if item.category.name != "porosity":
                 raise ValueError(
@@ -82,6 +97,10 @@ class OnnxCtDefectAdapter:
             maxx = float(item.bbox.maxx)
             maxy = float(item.bbox.maxy)
             confidence = float(item.score.value)
+
+            if confidence < self.conf_threshold:
+                rejected_scores.append(confidence)
+                continue
 
             defects.append(
                 {
@@ -97,9 +116,14 @@ class OnnxCtDefectAdapter:
             )
 
         if not defects:
+            # A-4: PASS 의 최상위 confidence = 1 - (임계값 미만 최고 결함 점수).
+            # 후보가 아예 없으면 1.0 이다.
+            top_rejected = max(rejected_scores, default=0.0)
+            confidence = min(max(1.0 - top_rejected, 0.0), 1.0)
+
             return {
                 "label": "PASS",
-                "confidence": 1.0,
+                "confidence": round(confidence, 6),
                 "defects": [],
             }
 

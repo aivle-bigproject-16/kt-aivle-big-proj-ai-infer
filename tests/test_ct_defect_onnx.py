@@ -92,3 +92,52 @@ def test_ct_adapter_returns_pass_for_no_detections():
         "confidence": 1.0,
         "defects": [],
     }
+
+
+def _prediction_with_score(score: float):
+    class Score:
+        value = score
+
+    class Prediction:
+        object_prediction_list = [
+            type(
+                "Item",
+                (),
+                {
+                    "score": Score(),
+                    "category": FakeCategory(),
+                    "bbox": FakeBbox(),
+                },
+            )()
+        ]
+
+    return Prediction()
+
+
+def test_pass_confidence_follows_a4_rule():
+    adapter = OnnxCtDefectAdapter(
+        "unused.onnx",
+        detection_model=object(),
+        predictor=lambda **kwargs: _prediction_with_score(0.2),
+        conf_threshold=0.5,
+    )
+
+    assert adapter.predict_defects(png_bytes()) == {
+        "label": "PASS",
+        "confidence": 0.8,
+        "defects": [],
+    }
+
+
+def test_detections_at_or_above_the_threshold_are_reported():
+    adapter = OnnxCtDefectAdapter(
+        "unused.onnx",
+        detection_model=object(),
+        predictor=lambda **kwargs: _prediction_with_score(0.5),
+        conf_threshold=0.5,
+    )
+
+    result = adapter.predict_defects(png_bytes())
+
+    assert result["label"] == "REJECT"
+    assert result["confidence"] == 0.5
