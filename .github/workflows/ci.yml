@@ -25,7 +25,12 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install --requirement requirements-dev.txt
+        # ultralytics 가 torch 를 끌어온다. CPU 휠을 먼저 박아 두지 않으면
+        # CI 러너가 매번 CUDA 빌드(약 2.5GB)를 내려받는다.
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu \
+            torch==2.11.0 torchvision==0.26.0
+          pip install --requirement requirements-dev.txt
 
       - name: Run tests
         run: pytest -q

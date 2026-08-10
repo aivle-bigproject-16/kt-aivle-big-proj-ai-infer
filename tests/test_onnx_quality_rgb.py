@@ -59,3 +59,14 @@ def test_pass_uses_class_one_probability():
     result = adapter.predict_quality(image_bytes())
 
     assert result == {"label": "PASS", "confidence": 0.8}
+
+
+def test_fail_threshold_is_configurable():
+    session = FakeSession([0.4, 0.6])
+    adapter = OnnxRgbQualityAdapter(
+        "unused.onnx",
+        fail_threshold=0.5,
+        session=session,
+    )
+
+    assert adapter.predict_quality(image_bytes())["label"] == "PASS"

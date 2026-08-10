@@ -70,6 +70,8 @@ class OnnxRgbQualityAdapter:
                 f"expected two RGB quality probabilities, got {probabilities.size}"
             )
 
+        # 채널 순서는 학습 때 Keras 가 클래스 디렉터리 이름을 사전순으로 매긴
+        # 결과다 — 0 = fail, 1 = pass. 모델을 다시 내보내면 이 가정부터 확인한다.
         fail_probability = float(probabilities[0])
         pass_probability = float(probabilities[1])
 
