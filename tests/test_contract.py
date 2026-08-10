@@ -112,6 +112,71 @@ def test_fail_response(monkeypatch):
     }
 
 
+def test_health_reports_the_live_adapters():
+    body = client.get("/health").json()
+
+    assert body["status"] == "ok"
+    assert body["models"] == {"ct": True, "rgb": True}
+    assert body["details"]["ct"]["adapter"] == "StubAdapter"
+    assert body["details"]["ct"]["error"] is None
+
+
+def test_health_reports_a_failed_adapter(monkeypatch):
+    monkeypatch.setattr(main, "RGB_ADAPTER", None)
+    monkeypatch.setattr(
+        main,
+        "RGB_ADAPTER_ERROR",
+        "RuntimeError: no model",
+    )
+
+    body = client.get("/health").json()
+
+    assert body["status"] == "degraded"
+    assert body["models"] == {"ct": True, "rgb": False}
+    assert body["details"]["rgb"]["error"] == "RuntimeError: no model"
+
+
+def test_unavailable_adapter_answers_with_service_unavailable(monkeypatch):
+    monkeypatch.setattr(main, "CT_ADAPTER", None)
+    monkeypatch.setattr(main, "CT_ADAPTER_ERROR", "RuntimeError: boom")
+
+    response = client.post("/infer/ct", json=REQUEST)
+
+    assert response.status_code == 503
+    assert "RuntimeError: boom" in response.json()["detail"]
+
+
+def test_unprocessable_image_answers_with_422(monkeypatch):
+    class RejectingAdapter:
+        def predict(self, image_bytes):
+            raise ValueError("invalid CT image")
+
+    monkeypatch.setattr(main, "LATENCY_MS", 0)
+    monkeypatch.setattr(main, "CT_ADAPTER", RejectingAdapter())
+
+    response = client.post("/infer/ct", json=REQUEST)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "unprocessable inference image"
+
+
+def test_unexpected_adapter_failure_answers_with_500(monkeypatch):
+    class BrokenAdapter:
+        def predict(self, image_bytes):
+            raise RuntimeError("cuda died")
+
+    monkeypatch.setattr(main, "LATENCY_MS", 0)
+    monkeypatch.setattr(main, "CT_ADAPTER", BrokenAdapter())
+
+    response = client.post(
+        "/infer/ct",
+        json=REQUEST,
+    )
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "inference failed"
+
+
 def test_latency_includes_internal_processing_time(monkeypatch):
     ticks = iter([100.0, 100.125])
     monkeypatch.setattr(main, "perf_counter", lambda: next(ticks))
