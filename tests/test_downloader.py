@@ -59,3 +59,51 @@ def test_download_image_rejects_oversized_body(monkeypatch):
 def test_download_image_rejects_unsupported_urls(url):
     with pytest.raises(downloader.ImageDownloadError):
         downloader.download_image(url)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://127.0.0.1/image.png",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://10.0.0.5/image.png",
+        "http://192.168.1.20/image.png",
+        "http://[::1]/image.png",
+    ],
+)
+def test_download_image_rejects_internal_addresses(url):
+    with pytest.raises(
+        downloader.ImageDownloadError,
+        match="non-public address",
+    ):
+        downloader.download_image(url)
+
+
+def test_download_image_rejects_hostnames_resolving_internally(monkeypatch):
+    monkeypatch.setattr(
+        downloader,
+        "_resolved_addresses",
+        lambda hostname: ["169.254.169.254"],
+    )
+
+    with pytest.raises(
+        downloader.ImageDownloadError,
+        match="non-public address",
+    ):
+        downloader.download_image("https://metadata.example/image.png")
+
+
+def test_download_image_allows_unresolvable_hostnames(monkeypatch):
+    transport = _transport(body=b"image-bytes")
+    original_client = httpx.Client
+    monkeypatch.setattr(downloader, "_resolved_addresses", lambda hostname: [])
+    monkeypatch.setattr(
+        downloader.httpx,
+        "Client",
+        lambda **kwargs: original_client(transport=transport, **kwargs),
+    )
+
+    assert (
+        downloader.download_image("https://storage.example/image.png")
+        == b"image-bytes"
+    )
