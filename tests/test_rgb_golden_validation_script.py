@@ -61,14 +61,12 @@ def test_all_possible_preflight_checks_run_before_instance_creation():
 def test_failure_diagnostics_are_saved_before_cleanup():
     text = SCRIPT.read_text(encoding="utf-8")
 
-    assert "trap upload_log EXIT" in text
     assert 'exec > >(tee -a "$LOG") 2>&1' in text
     assert "StandardOutputContent" in text
     assert "StandardErrorContent" in text
     assert "ResponseCode" in text
     assert "Set-Content -LiteralPath $ReportPath" in text
     assert "$ReportPath.lifecycle.log" in text
-    assert "$ReportPath.remote.log" in text
 
     mkdir = text.index('sudo mkdir -p "$WORK_DIR"')
     logging = text.index('exec > >(tee -a "$LOG") 2>&1')
@@ -82,6 +80,14 @@ def test_cleanup_attempts_ec2_before_other_resources_and_is_isolated():
     assert finally_block.index("terminate-gpu-validation.ps1") < finally_block.index("aws s3 rm")
     assert finally_block.count("try {") >= 3
     assert "automatic EC2 termination failed" in finally_block
+
+
+def test_staging_uses_the_existing_instance_role_readable_fixture_prefix():
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert 'models/ai-infer/onnx-20260809-01/fixtures/rgb-golden-$runId' in text
+    assert "RESULT_KEY" not in text
+    assert 'aws s3 cp "$LOG"' not in text
 
 
 def test_region_is_pinned_before_paid_execution():

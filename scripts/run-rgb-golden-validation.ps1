@@ -20,9 +20,10 @@ $accountId = "825555019742"
 $image = "${accountId}.dkr.ecr.${Region}.amazonaws.com/kt-aivle-big-proj-ai-infer:onnx-cuda12-ort126"
 $instanceStateFile = Join-Path $PSScriptRoot ".gpu-validation-instance-id"
 $runId = [DateTime]::UtcNow.ToString("yyyyMMdd-HHmmss") + "-" + [Guid]::NewGuid().ToString("N").Substring(0, 8)
-$s3Prefix = "models/ai-infer/rgb-golden-validation/$runId"
+# The EC2 validation role has read access to the existing bundle fixture prefix.
+# Do not introduce a new S3 prefix without updating that role first.
+$s3Prefix = "models/ai-infer/onnx-20260809-01/fixtures/rgb-golden-$runId"
 $archiveKey = "$s3Prefix/fixtures.zip"
-$resultKey = "$s3Prefix/rgb-golden-validation.log"
 
 if (-not $ReportPath) {
     $ReportPath = Join-Path $repo "rgb-golden-validation-$runId.log"
@@ -173,7 +174,6 @@ try {
     }
 
     $archiveKey64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($archiveKey))
-    $resultKey64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($resultKey))
     $image64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($image))
 
     $remoteScript = @'
@@ -183,8 +183,7 @@ export LC_ALL=C.UTF-8
 export PYTHONIOENCODING=utf-8
 
 ARCHIVE_KEY="$(printf '%s' "$1" | base64 -d)"
-RESULT_KEY="$(printf '%s' "$2" | base64 -d)"
-IMAGE="$(printf '%s' "$3" | base64 -d)"
+IMAGE="$(printf '%s' "$2" | base64 -d)"
 BUCKET="kt-aivle-big-proj-kks"
 REGION="ap-northeast-2"
 WORK_DIR="/opt/rgb-golden-validation"
@@ -194,12 +193,6 @@ sudo rm -rf "$WORK_DIR"
 sudo mkdir -p "$WORK_DIR"
 sudo chown "$(id -u):$(id -g)" "$WORK_DIR"
 
-upload_log() {
-  if [ -f "$LOG" ]; then
-    aws s3 cp "$LOG" "s3://${BUCKET}/${RESULT_KEY}" --region "$REGION" || true
-  fi
-}
-trap upload_log EXIT
 exec > >(tee -a "$LOG") 2>&1
 
 aws s3 cp "s3://${BUCKET}/${ARCHIVE_KEY}" "$WORK_DIR/fixtures.zip" --region "$REGION"
@@ -241,7 +234,7 @@ exit "$validation_exit"
 '@
 
     $script64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($remoteScript))
-    $command = "echo $script64 | base64 -d > /tmp/run-rgb-golden.sh && chmod 700 /tmp/run-rgb-golden.sh && sudo bash /tmp/run-rgb-golden.sh '$archiveKey64' '$resultKey64' '$image64'"
+    $command = "echo $script64 | base64 -d > /tmp/run-rgb-golden.sh && chmod 700 /tmp/run-rgb-golden.sh && sudo bash /tmp/run-rgb-golden.sh '$archiveKey64' '$image64'"
     $parameters = @{ commands = @($command) } | ConvertTo-Json -Depth 4
     [IO.File]::WriteAllText(
         $parametersFile,
@@ -291,17 +284,8 @@ exit "$validation_exit"
     Write-Host $invocation.StandardOutputContent
     if ($invocation.StandardErrorContent) { Write-Warning $invocation.StandardErrorContent }
 
-    $remoteLogPath = "$ReportPath.remote.log"
-    aws s3 cp "s3://$bucket/$resultKey" $remoteLogPath `
-        --profile $Profile --region $Region --only-show-errors
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Could not download the full remote log; SSM diagnostics were saved to $ReportPath."
-    } else {
-        Write-Host "Full remote log: $remoteLogPath"
-    }
-
     if ($status -ne "Success") {
-        throw "RGB golden validation failed with SSM status $status. Report: $ReportPath"
+        throw "RGB golden validation failed with SSM status $status. SSM stdout/stderr: $ReportPath"
     }
     Write-Host "RGB golden validation: PASS" -ForegroundColor Green
     Write-Host "Report: $ReportPath"
