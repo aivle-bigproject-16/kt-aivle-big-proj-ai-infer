@@ -1,6 +1,7 @@
 param(
     [switch]$Execute,
     [switch]$KeepInstance,
+    [string]$InstanceId = "",
     [string]$Profile = "default",
     [string]$Region = "ap-northeast-2",
     [string]$RgbRepo = "$env:USERPROFILE\Documents\model-card-review\kt-aivle-big-proj-model-rgb",
@@ -75,7 +76,7 @@ Write-Host ""
 Write-Host "RGB golden validation plan" -ForegroundColor Cyan
 Write-Host "Fixture:     $fixtureJson"
 Write-Host "Images:      $fixtureDir (20 verified)"
-Write-Host "Instance:    temporary g6e.xlarge in $Region"
+Write-Host "Instance:    $(if ($InstanceId) { "reuse $InstanceId" } else { "new temporary g6e.xlarge in $Region" })"
 Write-Host "Container:   $image"
 Write-Host "S3 staging:  s3://$bucket/$s3Prefix/"
 Write-Host "Local report: $ReportPath"
@@ -149,7 +150,7 @@ $tempRoot = Join-Path ([IO.Path]::GetTempPath()) "rgb-golden-$runId"
 $stagingDir = Join-Path $tempRoot "golden"
 $archivePath = Join-Path $tempRoot "fixtures.zip"
 $parametersFile = Join-Path $tempRoot "ssm-parameters.json"
-$instanceId = ""
+$instanceId = $InstanceId.Trim()
 $uploaded = $false
 
 try {
@@ -166,13 +167,39 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Failed to upload golden fixture archive." }
     $uploaded = $true
 
-    & (Join-Path $PSScriptRoot "launch-gpu-validation.ps1") `
-        -Execute -Profile $Profile -Region $Region
-    if ($LASTEXITCODE -ne 0) { throw "Failed to launch GPU validation instance." }
+    if ($instanceId) {
+        if ($instanceId -notmatch "^i-[0-9a-f]+$") {
+            throw "Invalid reusable validation instance ID: $instanceId"
+        }
+        $existingInstance = aws ec2 describe-instances `
+            --profile $Profile --region $Region --instance-ids $instanceId `
+            --query "Reservations[0].Instances[0].{State:State.Name,Type:InstanceType,Name:Tags[?Key=='Name']|[0].Value}" `
+            --output json | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or -not $existingInstance) {
+            throw "Reusable validation instance lookup failed: $instanceId"
+        }
+        if ($existingInstance.State -ne "running" -or
+            $existingInstance.Type -ne "g6e.xlarge" -or
+            $existingInstance.Name -ne "ai-infer-gpu-validation") {
+            throw "Reusable instance safety check failed: state=$($existingInstance.State), type=$($existingInstance.Type), name=$($existingInstance.Name)"
+        }
+        $pingStatus = aws ssm describe-instance-information `
+            --profile $Profile --region $Region `
+            --filters "Key=InstanceIds,Values=$instanceId" `
+            --query "InstanceInformationList[0].PingStatus" --output text
+        if ($LASTEXITCODE -ne 0 -or $pingStatus -ne "Online") {
+            throw "SSM is not online for reusable instance $instanceId."
+        }
+        Write-Warning "Reusing billable GPU instance: $instanceId"
+    } else {
+        & (Join-Path $PSScriptRoot "launch-gpu-validation.ps1") `
+            -Execute -Profile $Profile -Region $Region
+        if ($LASTEXITCODE -ne 0) { throw "Failed to launch GPU validation instance." }
 
-    $instanceId = (Get-Content -LiteralPath $instanceStateFile -Raw).Trim()
-    if ($instanceId -notmatch "^i-[0-9a-f]+$") {
-        throw "Invalid validation instance ID: $instanceId"
+        $instanceId = (Get-Content -LiteralPath $instanceStateFile -Raw).Trim()
+        if ($instanceId -notmatch "^i-[0-9a-f]+$") {
+            throw "Invalid validation instance ID: $instanceId"
+        }
     }
 
     $archiveKey64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($archiveKey))

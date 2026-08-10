@@ -67,7 +67,7 @@ def test_failure_diagnostics_are_saved_before_cleanup():
     assert "ResponseCode" in text
     assert "Set-Content -LiteralPath $ReportPath" in text
     assert "$ReportPath.lifecycle.log" in text
-    assert "--output json | ConvertFrom-Json" not in text
+    assert "--command-id $commandId --instance-id $instanceId --output json | ConvertFrom-Json" not in text
     assert '--query "StandardOutputContent" --output text' in text
     assert '--query "StandardErrorContent" --output text' in text
 
@@ -98,6 +98,17 @@ def test_region_is_pinned_before_paid_execution():
 
     assert 'if ($Region -ne "ap-northeast-2")' in text
     assert text.index('if ($Region -ne "ap-northeast-2")') < text.index("if (-not $Execute)")
+
+
+def test_existing_gpu_instance_can_be_safely_reused():
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert '[string]$InstanceId = ""' in text
+    assert 'if ($existingInstance.State -ne "running"' in text
+    assert '$existingInstance.Type -ne "g6e.xlarge"' in text
+    assert '$existingInstance.Name -ne "ai-infer-gpu-validation"' in text
+    assert "SSM is not online for reusable instance" in text
+    assert "Reusing billable GPU instance" in text
 
 
 def test_windows_aws_cli_output_is_forced_to_utf8():
