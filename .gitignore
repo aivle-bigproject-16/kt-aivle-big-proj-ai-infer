@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+work/
+models/
+*_onnx_verification.log
+/rgb_owlv2_onnx_validation*.json
+/rgb-golden-*.log
+/scripts/.gpu-validation-instance-id
+/scripts/.gpu-validation-command-id
+/scripts/.gpu-validation-fixtures.json

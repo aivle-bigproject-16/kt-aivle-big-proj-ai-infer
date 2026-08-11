@@ -1,0 +1,7 @@
+-r rgb-defect-lock.txt
+
+# PyTorch's direct exporter is used because Optimum ONNX currently requires
+# transformers < 4.58, while the model fixture is pinned to transformers 5.14.1.
+onnx
+onnxscript
+onnxruntime-gpu

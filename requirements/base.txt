@@ -1,0 +1,11 @@
+fastapi==0.115.*
+uvicorn[standard]==0.32.*
+pydantic==2.*
+httpx==0.28.*
+boto3==1.*
+numpy==2.*
+pillow==12.*
+onnxruntime==1.*
+onnx==1.*
+sahi==0.12.5
+ultralytics==8.4.115

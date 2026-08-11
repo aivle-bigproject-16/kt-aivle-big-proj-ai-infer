@@ -1,0 +1,27 @@
+# GPU 이미지 — 모든 추론 모드를 지원한다.
+# 빌드 컨텍스트는 리포지토리 루트다: docker build -f docker/Dockerfile.gpu-onnx .
+FROM pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      libgl1 \
+      libglib2.0-0 \
+      libxcb1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements/gpu-onnx.txt ./requirements/gpu-onnx.txt
+RUN python -m pip install \
+      --break-system-packages \
+      --no-cache-dir \
+      --timeout 1000 \
+      -r requirements/gpu-onnx.txt
+
+# 패키지를 통째로 넣는다. 모듈 단위로 나열하면 모듈이 빠진 채 발행되는 사고가
+# 재발한다.
+COPY app ./app
+
+EXPOSE 8000
+
+CMD ["python", "-m", "app.gpu_runtime"]

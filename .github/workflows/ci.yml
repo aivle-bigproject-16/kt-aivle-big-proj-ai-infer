@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feat/**
+      - fix/**
+      - chore/**
+      - refactor/**
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          # 기본 glob 은 `**/requirements.txt` 라, requirements/ 로 옮긴 뒤로는
+          # 아무 파일도 못 찾고 실패한다.
+          cache-dependency-path: requirements/*.txt
+
+      - name: Install dependencies
+        # ultralytics 가 torch 를 끌어온다. CPU 휠을 먼저 박아 두지 않으면
+        # CI 러너가 매번 CUDA 빌드(약 2.5GB)를 내려받는다.
+        run: |
+          pip install --index-url https://download.pytorch.org/whl/cpu \
+            torch==2.11.0 torchvision==0.26.0
+          pip install --requirement requirements/dev.txt
+
+      - name: Run tests
+        run: pytest -q
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build container image
+        run: docker build --file docker/Dockerfile --tag ai-infer:ci .

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "bundleVersion": "onnx-20260809-01",
+  "s3Prefix": "models/ai-infer/onnx-20260809-01",
+  "runtime": {
+    "inferenceMode": "onnx",
+    "onnxDevice": "cuda",
+    "ctPostprocessType": "NMS",
+    "ctPostprocessMatchMetric": "IOS",
+    "ctPostprocessMatchThreshold": 0.44
+  },
+  "artifacts": [
+    {
+      "name": "ct-quality",
+      "localPath": "models/quality_ct.onnx",
+      "s3Key": "models/ai-infer/onnx-20260809-01/quality_ct.onnx",
+      "sizeBytes": 6085147,
+      "sha256": "62d5c75ae80ac262565aa5ffe7b8788426ff163b4a860f315c4e82c3c9684bcf"
+    },
+    {
+      "name": "ct-defect",
+      "localPath": "models/defect_ct.torch211.onnx",
+      "s3Key": "models/ai-infer/onnx-20260809-01/defect_ct.onnx",
+      "sizeBytes": 90166738,
+      "sha256": "f3cda9ca82b6d53eb14da28864f32c3a4506b4db642ed55b0317ec20c9dfb1a7"
+    },
+    {
+      "name": "rgb-quality",
+      "localPath": "models/quality_rgb.onnx",
+      "s3Key": "models/ai-infer/onnx-20260809-01/quality_rgb.onnx",
+      "sizeBytes": 3776775,
+      "sha256": "37284c21faae7739547c901ee56576ae569a01258b61d29d60174e7858167964"
+    },
+    {
+      "name": "rgb-defect-graph",
+      "localPath": "models/rgb_owlv2_onnx/model.onnx",
+      "s3Key": "models/ai-infer/onnx-20260809-01/rgb_owlv2_onnx/model.onnx",
+      "sizeBytes": 4337181,
+      "sha256": "efaebd550d6fe42bdfa5f1647345df48e899d86a76085cfb5fe58567a07464d3"
+    },
+    {
+      "name": "rgb-defect-external-data",
+      "localPath": "models/rgb_owlv2_onnx/model.onnx.data",
+      "s3Key": "models/ai-infer/onnx-20260809-01/rgb_owlv2_onnx/model.onnx.data",
+      "sizeBytes": 1739128832,
+      "sha256": "88cbf7f916dfc05dfdab0171d0a54e3e50ddbf75f2689d937452a66c29d44656"
+    },
+    {
+      "name": "rgb-defect-processor",
+      "localPath": "models/rgb_owlv2_onnx/processor_config.json",
+      "s3Key": "models/ai-infer/onnx-20260809-01/rgb_owlv2_onnx/processor_config.json",
+      "sizeBytes": 551,
+      "sha256": "b315b43961620a0b04db0f78da537fe383a08c6d00f8165cda977fb8d0de638a"
+    },
+    {
+      "name": "rgb-defect-tokenizer",
+      "localPath": "models/rgb_owlv2_onnx/tokenizer.json",
+      "s3Key": "models/ai-infer/onnx-20260809-01/rgb_owlv2_onnx/tokenizer.json",
+      "sizeBytes": 3642408,
+      "sha256": "666df7f940a13c3b91a289d3b4c9a0f166b6503479e40011952426e1b6768513"
+    },
+    {
+      "name": "rgb-defect-tokenizer-config",
+      "localPath": "models/rgb_owlv2_onnx/tokenizer_config.json",
+      "s3Key": "models/ai-infer/onnx-20260809-01/rgb_owlv2_onnx/tokenizer_config.json",
+      "sizeBytes": 464,
+      "sha256": "b31bdc44bd83d8d36c550ce9da7b40de72e799236c084ee92be0f9543c50a9f6"
+    }
+  ]
+}
