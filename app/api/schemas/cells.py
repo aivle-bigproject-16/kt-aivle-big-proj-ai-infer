@@ -1,68 +1,20 @@
+"""`POST /ai/cells/analyze` 요청·수락 응답과, BE 로 되돌려 보내는 콜백 계약.
+
+BE 가 셀 하나(이미지 여러 장)를 맡기면 서버는 `CellAnalysisAccepted` 로 즉시
+답하고, 분석이 끝난 뒤 `CellAnalysisCallback` 을 BE 콜백 URL 로 POST 한다.
+와이어 표기는 전부 camelCase 다.
+"""
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
-
-Label = Literal["PASS", "REJECT", "FAIL"]
-
-# 계약 §6.5 / A-5: 와이어 표기는 영문 4종 고정이다. 모델이 내는 한글 라벨은
-# 어댑터 경계(app.adapters.rgb_defect_owlv2.TAG_TO_DEFECT_TYPE)에서 이 4종으로
-# 변환한다.
-DefectType = Literal[
-    "SWELLING",
-    "SPOT",
-    "MICRO_DEFECT",
-    "CRACK",
-]
-
-
-class InferRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    inspection_id: int
-    image_key: str = Field(min_length=1)
-    image_url: str = Field(min_length=1)
-
-
-class BoundingBox(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    x: float
-    y: float
-    width: float = Field(ge=0.0)
-    height: float = Field(ge=0.0)
-
-
-class Defect(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    defectType: DefectType
-    confidence: float = Field(ge=0.0, le=1.0)
-    bbox: BoundingBox
-
-
-class InferResponse(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    inspection_id: int
-    label: Label
-    confidence: float = Field(ge=0.0, le=1.0)
-    defects: list[Defect]
-    latency_ms: int = Field(ge=0)
-
-
-def _to_camel(name: str) -> str:
-    head, *tail = name.split("_")
-    return head + "".join(part.capitalize() for part in tail)
-
-
-class BackendContractModel(BaseModel):
-    model_config = ConfigDict(
-        alias_generator=_to_camel,
-        populate_by_name=True,
-        extra="forbid",
-    )
+from app.api.schemas.common import (
+    BackendContractModel,
+    CallbackBoundingBox,
+    DefectType,
+    Label,
+)
 
 
 class CellImageRequest(BackendContractModel):
@@ -90,13 +42,6 @@ class CellAnalysisAccepted(BackendContractModel):
     battery_cell_id: int
     status: Literal["ACCEPTED"]
     accepted_at: datetime
-
-
-class CallbackBoundingBox(BackendContractModel):
-    x: int
-    y: int
-    width: int = Field(ge=0)
-    height: int = Field(ge=0)
 
 
 class CallbackDefect(BackendContractModel):

@@ -309,7 +309,11 @@ CT 문서와 실행 경로에서 640/1280 설명이 혼재했다. 실제 체크�
 
 | 파일 | 역할 |
 | --- | --- |
-| `app/main.py` | FastAPI 엔드포인트 및 공통 추론 처리 |
+| `app/main.py` | 앱 조립 (`create_app`) |
+| `app/api/` | HTTP 경계 — 라우터·스키마·상태 코드 매핑·인증 (리뷰 범위) |
+| `app/services/` | 단건 추론과 셀 분석 유스케이스 |
+| `app/core/runtime.py` | 어댑터 적재, 셀 분석 스레드풀과 큐 용량 |
+| `docs/openapi.json` | OpenAPI 스펙 전문 (콜백 계약 포함) |
 | `app/adapters/base.py` | 품질 우선 파이프라인 |
 | `app/adapters/factory.py` | CT/RGB 및 CPU/GPU 어댑터 조립 |
 | `app/adapters/ct_quality_onnx.py` | CT 품질 ONNX 전처리·추론 |

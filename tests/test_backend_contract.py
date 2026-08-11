@@ -1,14 +1,9 @@
 from datetime import datetime, timezone
 from dataclasses import replace
+from threading import BoundedSemaphore
 
-from fastapi.testclient import TestClient
-
-from app import main
-from app.cell_analysis import build_callback, send_callback
-from app.schemas import CellAnalysisRequest
-
-
-client = TestClient(main.app)
+from app.api.schemas import CellAnalysisRequest
+from app.services.cell_analysis import build_callback, send_callback
 
 REQUEST = {
     "requestId": "request-1",
@@ -44,15 +39,19 @@ class RecordingFuture:
         self.callback = callback
 
 
-def test_backend_request_is_accepted_with_exact_camel_case_contract(monkeypatch):
+def test_backend_request_is_accepted_with_exact_camel_case_contract(
+    monkeypatch,
+    client,
+    runtime,
+):
     executor = RecordingExecutor()
-    monkeypatch.setattr(main, "ANALYSIS_EXECUTOR", executor)
-    monkeypatch.setattr(main, "ANALYSIS_CAPACITY", main.BoundedSemaphore(4))
+    monkeypatch.setattr(runtime, "analysis_executor", executor)
+    monkeypatch.setattr(runtime, "analysis_capacity", BoundedSemaphore(4))
     monkeypatch.setattr(
-        main,
-        "SETTINGS",
+        runtime,
+        "settings",
         replace(
-            main.SETTINGS,
+            runtime.settings,
             internal_api_key="test-key",
             backend_callback_url=REQUEST["callbackUrl"],
         ),
@@ -79,12 +78,16 @@ def test_backend_request_is_accepted_with_exact_camel_case_contract(monkeypatch)
     assert len(executor.calls) == 1
 
 
-def test_backend_request_rejects_missing_or_wrong_internal_key(monkeypatch):
+def test_backend_request_rejects_missing_or_wrong_internal_key(
+    monkeypatch,
+    client,
+    runtime,
+):
     monkeypatch.setattr(
-        main,
-        "SETTINGS",
+        runtime,
+        "settings",
         replace(
-            main.SETTINGS,
+            runtime.settings,
             internal_api_key="test-key",
             backend_callback_url=REQUEST["callbackUrl"],
         ),
@@ -108,7 +111,7 @@ class FixedAdapter:
 
 def test_callback_matches_backend_dto_and_reject_wins(monkeypatch):
     monkeypatch.setattr(
-        "app.cell_analysis.download_s3_image",
+        "app.services.cell_analysis.download_s3_image",
         lambda bucket, key: b"image",
     )
     request = CellAnalysisRequest.model_validate({
@@ -160,7 +163,7 @@ def test_operational_image_failure_marks_cell_failed(monkeypatch):
 
         raise ImageDownloadError("not found")
 
-    monkeypatch.setattr("app.cell_analysis.download_s3_image", fail_download)
+    monkeypatch.setattr("app.services.cell_analysis.download_s3_image", fail_download)
     request = CellAnalysisRequest.model_validate(REQUEST)
     callback = build_callback(request, {
         "RGB": FixedAdapter({}),
@@ -189,7 +192,7 @@ def test_callback_posts_backend_camel_case_contract_and_internal_key(
         recorded.update(kwargs)
         return Response()
 
-    monkeypatch.setattr("app.cell_analysis.httpx.post", fake_post)
+    monkeypatch.setattr("app.services.cell_analysis.httpx.post", fake_post)
 
     send_callback(
         request.callback_url,
@@ -207,15 +210,19 @@ def test_callback_posts_backend_camel_case_contract_and_internal_key(
     assert recorded["json"]["imageResults"][0]["imageId"] == 40
 
 
-def test_request_rejects_unconfigured_callback_destination(monkeypatch):
+def test_request_rejects_unconfigured_callback_destination(
+    monkeypatch,
+    client,
+    runtime,
+):
     executor = RecordingExecutor()
-    monkeypatch.setattr(main, "ANALYSIS_EXECUTOR", executor)
-    monkeypatch.setattr(main, "ANALYSIS_CAPACITY", main.BoundedSemaphore(4))
+    monkeypatch.setattr(runtime, "analysis_executor", executor)
+    monkeypatch.setattr(runtime, "analysis_capacity", BoundedSemaphore(4))
     monkeypatch.setattr(
-        main,
-        "SETTINGS",
+        runtime,
+        "settings",
         replace(
-            main.SETTINGS,
+            runtime.settings,
             internal_api_key="test-key",
             backend_callback_url="http://backend:8080/internal/ai/callbacks/cell",
         ),
