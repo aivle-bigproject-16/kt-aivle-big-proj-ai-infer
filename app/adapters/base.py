@@ -40,6 +40,8 @@ class StubQualityAdapter:
             return {
                 "label": "FAIL",
                 "confidence": 0.0,
+                "fail_type": "stub_failure",
+                "description": "This is a stub failure",
             }
 
         return {
@@ -115,6 +117,8 @@ class InferencePipeline:
                 "label": "FAIL",
                 "confidence": quality["confidence"],
                 "defects": [],
+                "fail_type": quality.get("fail_type"),
+                "description": quality.get("description"),
             }
 
         return self.defect_adapter.predict_defects(image_bytes)

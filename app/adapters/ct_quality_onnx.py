@@ -72,21 +72,40 @@ class OnnxCtQualityAdapter:
         self.output_name = self.session.get_outputs()[0].name
 
     def predict_quality(self, image_bytes: bytes) -> dict:
-        tensor = preprocess_ct_quality(image_bytes)
-        output = self.session.run(
-            [self.output_name],
-            {self.input_name: tensor},
-        )[0]
-        logit = float(np.asarray(output).reshape(-1)[0])
-        fail_probability = sigmoid(logit)
-
-        if logit >= self.threshold:
+        import json
+        try:
+            json_data = json.loads(image_bytes.decode('utf-8'))
+            if json_data.get("status") == "COMPLETED" and json_data.get("content"):
+                content = json_data["content"][0]
+                if "failType" in content:
+                    return {
+                        "label": "FAIL",
+                        "confidence": 1.0,
+                        "fail_type": content["failType"],
+                        "description": content.get("description", ""),
+                    }
             return {
-                "label": "FAIL",
-                "confidence": round(fail_probability, 6),
+                "label": "PASS",
+                "confidence": 1.0,
             }
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            tensor = preprocess_ct_quality(image_bytes)
+            output = self.session.run(
+                [self.output_name],
+                {self.input_name: tensor},
+            )[0]
+            logit = float(np.asarray(output).reshape(-1)[0])
+            fail_probability = sigmoid(logit)
 
-        return {
-            "label": "PASS",
-            "confidence": round(1.0 - fail_probability, 6),
-        }
+            if logit >= self.threshold:
+                return {
+                    "label": "FAIL",
+                    "confidence": round(fail_probability, 6),
+                    "fail_type": "ct_quality_failure",
+                    "description": "CT Image failed quality check",
+                }
+
+            return {
+                "label": "PASS",
+                "confidence": round(1.0 - fail_probability, 6),
+            }
