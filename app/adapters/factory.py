@@ -10,7 +10,7 @@ from app.adapters.base import (
 from app.adapters.ct_quality_onnx import OnnxCtQualityAdapter
 from app.adapters.rgb_quality_onnx import OnnxRgbQualityAdapter
 from app.adapters.ct_defect_onnx import OnnxCtDefectAdapter
-from app.settings import Settings
+from app.core.settings import Settings
 
 
 MODALITIES = ("ct", "rgb")

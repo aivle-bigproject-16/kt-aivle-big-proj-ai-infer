@@ -12,10 +12,14 @@ KT AIVLE 빅프로젝트 16조 **AI 추론 서버**입니다. 배터리 셀의 C
 ## 📁 저장소 구조
 
 - `app/` — 서비스 코드 (파이썬 패키지)
-  - `main.py` — FastAPI 엔드포인트와 공통 추론 처리
-  - `settings.py` · `schemas.py` — 환경변수 로딩, 요청·응답 계약 모델
-  - `cell_analysis.py` — 셀 단위 비동기 분석과 BE 콜백 전송
-  - `gpu_runtime.py` — CUDA 라이브러리 선로드 후 uvicorn 기동 (GPU 이미지 진입점)
+  - `main.py` — 앱 조립만 하는 얇은 진입점 (`create_app`)
+  - **`api/` — HTTP 경계. BE·인프라 담당이 검토할 범위는 여기가 전부입니다** ([리뷰어 안내](app/api/README.md))
+    - `routers/` — `infer.py` · `cells.py` · `health.py`. 엔드포인트 하나가 파일 하나
+    - `schemas/` — `infer.py`(snake_case) · `cells.py`(camelCase) · `common.py`(공통 값 타입)
+    - `errors.py` — 예외 → HTTP 상태 코드 매핑표. 상태 코드의 유일한 근거
+    - `deps.py` — `X-Internal-Api-Key` 검증과 런타임 주입
+  - `services/` — HTTP를 모르는 유스케이스. `inference.py`(단건) · `cell_analysis.py`(셀+콜백)
+  - `core/` — `settings.py`(환경변수) · `runtime.py`(어댑터 적재, 스레드풀, 큐 용량)
   - `adapters/` — 모달별 어댑터
     - `base.py` — 어댑터 프로토콜, 스텁, 품질 우선 파이프라인
     - `factory.py` — `INFERENCE_MODE`에 따른 어댑터 조립
@@ -23,6 +27,11 @@ KT AIVLE 빅프로젝트 16조 **AI 추론 서버**입니다. 배터리 셀의 C
     - `rgb_quality_onnx.py` · `rgb_defect_owlv2.py` — RGB 품질 분류기, OWLv2 계약 변환
   - `download/` — `http_image.py`(presigned URL, SSRF 차단) · `s3_image.py`(S3 직접 조회)
   - `vendor/` — 모델 레포에서 **원본 해시 그대로** 가져온 코드. 수정하지 않습니다
+  - `gpu_runtime.py` — CUDA 라이브러리 선로드 후 uvicorn 기동 (GPU 이미지 진입점)
+
+레이어 방향은 `api → services → adapters` 한쪽입니다. `services/`는 FastAPI 타입을
+쓰지 않고, `adapters/`는 HTTP를 모릅니다. 그래서 API 계약 리뷰가 `app/api/`
+안에서 닫힙니다.
 - `docker/` — `Dockerfile`(CPU) · `Dockerfile.gpu-onnx`(GPU). 빌드 컨텍스트는 리포지토리 루트입니다
 - `requirements/` — `base` · `dev` · `gpu-onnx` · `rgb-defect-lock` · `rgb-defect-export`
 - `scripts/` — GPU 검증, ONNX 변환, 모델 번들 발행 스크립트
@@ -31,6 +40,10 @@ KT AIVLE 빅프로젝트 16조 **AI 추론 서버**입니다. 배터리 셀의 C
 - `docs/` — 아래 [문서](#-문서) 참조
 
 ## 🔌 API
+
+> **BE·인프라 리뷰어께**: 계약 전문은 [`docs/openapi.json`](docs/openapi.json)에
+> 있고(콜백 포함), 코드로 보실 경우 [`app/api/`](app/api/README.md) 폴더만 읽으면
+> 됩니다. 서버를 띄우면 `/docs`에서 같은 내용을 대화형으로 볼 수 있습니다.
 
 | 엔드포인트 | 설명 |
 | --- | --- |
@@ -151,6 +164,8 @@ GPU 이미지는 `scripts/publish-gpu-image.ps1`로 ECR에 발행합니다.
 
 | 문서 | 내용 |
 | --- | --- |
+| [`app/api/README.md`](app/api/README.md) | **API 리뷰어 안내** — 계약이 어느 파일에 있는지, 무엇을 봐야 하는지 |
+| [`docs/openapi.json`](docs/openapi.json) | OpenAPI 스펙 전문. `python -m scripts.dump_openapi`로 갱신 |
 | [`docs/AI_INFRA_IMPLEMENTATION_SUMMARY.md`](docs/AI_INFRA_IMPLEMENTATION_SUMMARY.md) | AI 인프라 구현 전체 요약과 잔여 과제 |
 | [`docs/V0_2_0_FIX_PLAN.md`](docs/V0_2_0_FIX_PLAN.md) | v0.2.0 결함 감사와 수정 계획 |
 | [`docs/CT_DEFECT_ONNX.md`](docs/CT_DEFECT_ONNX.md) | CT 결함 ONNX 후처리 설정과 골든 픽스처 검증 결과 |

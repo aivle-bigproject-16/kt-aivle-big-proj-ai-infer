@@ -1,6 +1,6 @@
 from app.adapters.base import InferencePipeline, StubAdapter
 from app.adapters.factory import build_adapter
-from app.settings import Settings
+from app.core.settings import Settings
 
 
 def unified_settings() -> Settings:

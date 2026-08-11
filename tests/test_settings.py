@@ -1,6 +1,6 @@
 import pytest
 
-from app.settings import load_settings
+from app.core.settings import load_settings
 
 
 def test_onnx_device_defaults_to_cpu(monkeypatch):

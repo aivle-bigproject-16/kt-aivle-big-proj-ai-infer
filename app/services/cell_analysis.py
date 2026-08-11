@@ -6,7 +6,7 @@ import httpx
 from app.adapters.base import InferenceAdapter
 from app.download.http_image import ImageDownloadError
 from app.download.s3_image import download_s3_image
-from app.schemas import (
+from app.api.schemas import (
     CallbackDefect,
     CellAnalysisCallback,
     CellAnalysisRequest,

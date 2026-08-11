@@ -1,0 +1,792 @@
+{
+  "components": {
+    "schemas": {
+      "BoundingBox": {
+        "additionalProperties": false,
+        "description": "단건 추론 응답의 좌표. 원본 이미지 좌표계이며 실수다.",
+        "properties": {
+          "height": {
+            "minimum": 0.0,
+            "title": "Height",
+            "type": "number"
+          },
+          "width": {
+            "minimum": 0.0,
+            "title": "Width",
+            "type": "number"
+          },
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "BoundingBox",
+        "type": "object"
+      },
+      "CallbackBoundingBox": {
+        "additionalProperties": false,
+        "description": "셀 분석 콜백의 좌표. BE DTO 에 맞춰 정수로 반올림해서 보낸다.",
+        "properties": {
+          "height": {
+            "minimum": 0.0,
+            "title": "Height",
+            "type": "integer"
+          },
+          "width": {
+            "minimum": 0.0,
+            "title": "Width",
+            "type": "integer"
+          },
+          "x": {
+            "title": "X",
+            "type": "integer"
+          },
+          "y": {
+            "title": "Y",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "title": "CallbackBoundingBox",
+        "type": "object"
+      },
+      "CallbackDefect": {
+        "additionalProperties": false,
+        "properties": {
+          "bbox": {
+            "$ref": "#/components/schemas/CallbackBoundingBox"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "defectType": {
+            "enum": [
+              "SWELLING",
+              "SPOT",
+              "MICRO_DEFECT",
+              "CRACK"
+            ],
+            "title": "Defecttype",
+            "type": "string"
+          }
+        },
+        "required": [
+          "defectType",
+          "confidence",
+          "bbox"
+        ],
+        "title": "CallbackDefect",
+        "type": "object"
+      },
+      "CellAnalysisAccepted": {
+        "additionalProperties": false,
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "acceptedAt": {
+            "format": "date-time",
+            "title": "Acceptedat",
+            "type": "string"
+          },
+          "batteryCellId": {
+            "title": "Batterycellid",
+            "type": "integer"
+          },
+          "inspectionId": {
+            "title": "Inspectionid",
+            "type": "integer"
+          },
+          "requestId": {
+            "title": "Requestid",
+            "type": "string"
+          },
+          "status": {
+            "const": "ACCEPTED",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accepted",
+          "requestId",
+          "inspectionId",
+          "batteryCellId",
+          "status",
+          "acceptedAt"
+        ],
+        "title": "CellAnalysisAccepted",
+        "type": "object"
+      },
+      "CellAnalysisCallback": {
+        "additionalProperties": false,
+        "properties": {
+          "batchId": {
+            "title": "Batchid",
+            "type": "integer"
+          },
+          "batteryCellId": {
+            "title": "Batterycellid",
+            "type": "integer"
+          },
+          "cellSerialNo": {
+            "title": "Cellserialno",
+            "type": "string"
+          },
+          "cellStatus": {
+            "enum": [
+              "COMPLETED",
+              "FAILED"
+            ],
+            "title": "Cellstatus",
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "title": "Completedat",
+            "type": "string"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "failureReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failurereason"
+          },
+          "finalLabel": {
+            "anyOf": [
+              {
+                "enum": [
+                  "PASS",
+                  "REJECT",
+                  "FAIL"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finallabel"
+          },
+          "imageResults": {
+            "items": {
+              "$ref": "#/components/schemas/ImageAnalysisResult"
+            },
+            "title": "Imageresults",
+            "type": "array"
+          },
+          "inspectionId": {
+            "title": "Inspectionid",
+            "type": "integer"
+          },
+          "requestId": {
+            "title": "Requestid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "batchId",
+          "inspectionId",
+          "batteryCellId",
+          "cellSerialNo",
+          "cellStatus",
+          "finalLabel",
+          "failureReason",
+          "confidence",
+          "completedAt",
+          "imageResults"
+        ],
+        "title": "CellAnalysisCallback",
+        "type": "object"
+      },
+      "CellAnalysisRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "batchId": {
+            "title": "Batchid",
+            "type": "integer"
+          },
+          "batteryCellId": {
+            "title": "Batterycellid",
+            "type": "integer"
+          },
+          "callbackUrl": {
+            "minLength": 1,
+            "title": "Callbackurl",
+            "type": "string"
+          },
+          "cellSerialNo": {
+            "minLength": 1,
+            "title": "Cellserialno",
+            "type": "string"
+          },
+          "images": {
+            "items": {
+              "$ref": "#/components/schemas/CellImageRequest"
+            },
+            "minItems": 1,
+            "title": "Images",
+            "type": "array"
+          },
+          "inspectionId": {
+            "title": "Inspectionid",
+            "type": "integer"
+          },
+          "requestId": {
+            "minLength": 1,
+            "title": "Requestid",
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "title": "Requestedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "batchId",
+          "inspectionId",
+          "batteryCellId",
+          "cellSerialNo",
+          "requestedAt",
+          "callbackUrl",
+          "images"
+        ],
+        "title": "CellAnalysisRequest",
+        "type": "object"
+      },
+      "CellImageRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "bucketName": {
+            "minLength": 1,
+            "title": "Bucketname",
+            "type": "string"
+          },
+          "imageId": {
+            "title": "Imageid",
+            "type": "integer"
+          },
+          "imageType": {
+            "enum": [
+              "CT",
+              "RGB"
+            ],
+            "title": "Imagetype",
+            "type": "string"
+          },
+          "objectKey": {
+            "minLength": 1,
+            "title": "Objectkey",
+            "type": "string"
+          }
+        },
+        "required": [
+          "imageId",
+          "imageType",
+          "bucketName",
+          "objectKey"
+        ],
+        "title": "CellImageRequest",
+        "type": "object"
+      },
+      "Defect": {
+        "additionalProperties": false,
+        "properties": {
+          "bbox": {
+            "$ref": "#/components/schemas/BoundingBox"
+          },
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "defectType": {
+            "enum": [
+              "SWELLING",
+              "SPOT",
+              "MICRO_DEFECT",
+              "CRACK"
+            ],
+            "title": "Defecttype",
+            "type": "string"
+          }
+        },
+        "required": [
+          "defectType",
+          "confidence",
+          "bbox"
+        ],
+        "title": "Defect",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ImageAnalysisResult": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "defects": {
+            "items": {
+              "$ref": "#/components/schemas/CallbackDefect"
+            },
+            "title": "Defects",
+            "type": "array"
+          },
+          "errorCode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errorcode"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "imageId": {
+            "title": "Imageid",
+            "type": "integer"
+          },
+          "imageType": {
+            "enum": [
+              "CT",
+              "RGB"
+            ],
+            "title": "Imagetype",
+            "type": "string"
+          },
+          "label": {
+            "enum": [
+              "PASS",
+              "REJECT",
+              "FAIL"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "latencyMs": {
+            "minimum": 0.0,
+            "title": "Latencyms",
+            "type": "integer"
+          },
+          "rawResponse": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rawresponse"
+          }
+        },
+        "required": [
+          "imageId",
+          "imageType",
+          "label",
+          "confidence",
+          "defects",
+          "rawResponse",
+          "latencyMs",
+          "errorCode",
+          "errorMessage"
+        ],
+        "title": "ImageAnalysisResult",
+        "type": "object"
+      },
+      "InferRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "image_key": {
+            "minLength": 1,
+            "title": "Image Key",
+            "type": "string"
+          },
+          "image_url": {
+            "minLength": 1,
+            "title": "Image Url",
+            "type": "string"
+          },
+          "inspection_id": {
+            "title": "Inspection Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "inspection_id",
+          "image_key",
+          "image_url"
+        ],
+        "title": "InferRequest",
+        "type": "object"
+      },
+      "InferResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence",
+            "type": "number"
+          },
+          "defects": {
+            "items": {
+              "$ref": "#/components/schemas/Defect"
+            },
+            "title": "Defects",
+            "type": "array"
+          },
+          "inspection_id": {
+            "title": "Inspection Id",
+            "type": "integer"
+          },
+          "label": {
+            "enum": [
+              "PASS",
+              "REJECT",
+              "FAIL"
+            ],
+            "title": "Label",
+            "type": "string"
+          },
+          "latency_ms": {
+            "minimum": 0.0,
+            "title": "Latency Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "inspection_id",
+          "label",
+          "confidence",
+          "defects",
+          "latency_ms"
+        ],
+        "title": "InferResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "summary": "KT AIVLE 빅프로젝트 16조 AI 추론 서버",
+    "title": "ai-infer",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/ai/cells/analyze": {
+      "post": {
+        "callbacks": {
+          "cell_analysis_callback": {
+            "{$request.body.callbackUrl}": {
+              "post": {
+                "description": "`X-Internal-Api-Key` 를 함께 보낸다. BE 는 2xx 로 답해야 한다.\n\n2xx 가 아니면 `CALLBACK_MAX_ATTEMPTS` 까지 지수 백오프로 재시도한다.",
+                "operationId": "cell_analysis_callback__request_body_callbackUrl__post",
+                "requestBody": {
+                  "content": {
+                    "application/json": {
+                      "schema": {
+                        "$ref": "#/components/schemas/CellAnalysisCallback"
+                      }
+                    }
+                  },
+                  "required": true
+                },
+                "responses": {
+                  "200": {
+                    "content": {
+                      "application/json": {
+                        "schema": {}
+                      }
+                    },
+                    "description": "Successful Response"
+                  },
+                  "422": {
+                    "content": {
+                      "application/json": {
+                        "schema": {
+                          "$ref": "#/components/schemas/HTTPValidationError"
+                        }
+                      }
+                    },
+                    "description": "Validation Error"
+                  }
+                },
+                "summary": "분석 완료 후 서버가 BE 로 보내는 콜백"
+              }
+            }
+          }
+        },
+        "operationId": "analyze_cell_ai_cells_analyze_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-internal-api-key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Internal-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CellAnalysisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CellAnalysisAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "callbackUrl 이 설정된 콜백과 다릅니다"
+          },
+          "401": {
+            "description": "X-Internal-Api-Key 불일치"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "셀 분석 큐가 가득 찼습니다"
+          }
+        },
+        "summary": "셀 1개 비동기 분석 접수",
+        "tags": [
+          "cell-analysis"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "서버 준비 상태와 모달별 어댑터 상세",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/infer/ct": {
+      "post": {
+        "operationId": "infer_ct_infer_ct_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "전처리가 이미지를 거부했습니다"
+          },
+          "500": {
+            "description": "추론 중 예기치 못한 실패"
+          },
+          "502": {
+            "description": "image_url 다운로드 실패"
+          },
+          "503": {
+            "description": "해당 모달 어댑터가 준비되지 않았습니다"
+          }
+        },
+        "summary": "CT 이미지 1장 추론",
+        "tags": [
+          "inference"
+        ]
+      }
+    },
+    "/infer/rgb": {
+      "post": {
+        "operationId": "infer_rgb_infer_rgb_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InferRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InferResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "전처리가 이미지를 거부했습니다"
+          },
+          "500": {
+            "description": "추론 중 예기치 못한 실패"
+          },
+          "502": {
+            "description": "image_url 다운로드 실패"
+          },
+          "503": {
+            "description": "해당 모달 어댑터가 준비되지 않았습니다"
+          }
+        },
+        "summary": "RGB 이미지 1장 추론",
+        "tags": [
+          "inference"
+        ]
+      }
+    }
+  }
+}
