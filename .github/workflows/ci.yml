@@ -25,6 +25,9 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+          # 기본 glob 은 `**/requirements.txt` 라, requirements/ 로 옮긴 뒤로는
+          # 아무 파일도 못 찾고 실패한다.
+          cache-dependency-path: requirements/*.txt
 
       - name: Install dependencies
         # ultralytics 가 torch 를 끌어온다. CPU 휠을 먼저 박아 두지 않으면
