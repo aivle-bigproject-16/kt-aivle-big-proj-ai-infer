@@ -7,8 +7,8 @@ import pytest
 
 SCRIPT = Path("scripts/run-gpu-validation.ps1")
 UPLOAD_SCRIPT = Path("scripts/upload-gpu-validation-fixtures.ps1")
-GPU_RUNTIME = Path("gpu_runtime.py")
-GPU_DOCKERFILE = Path("Dockerfile.gpu-onnx")
+GPU_RUNTIME = Path("app/gpu_runtime.py")
+GPU_DOCKERFILE = Path("docker/Dockerfile.gpu-onnx")
 
 
 def test_gpu_validation_script_has_cost_and_target_guards():
@@ -109,6 +109,6 @@ def test_gpu_runtime_preloads_cuda_libraries_before_app_import():
     assert "import torch" in runtime
     assert "ort.preload_dlls()" in runtime
     assert "ctypes.CDLL" in runtime
-    assert 'uvicorn.run("main:app"' in runtime
-    assert "COPY *.py ./" in dockerfile
-    assert 'CMD ["python", "gpu_runtime.py"]' in dockerfile
+    assert 'uvicorn.run("app.main:app"' in runtime
+    assert "COPY app ./app" in dockerfile
+    assert 'CMD ["python", "-m", "app.gpu_runtime"]' in dockerfile

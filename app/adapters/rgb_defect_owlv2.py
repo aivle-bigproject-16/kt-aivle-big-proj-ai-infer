@@ -138,7 +138,7 @@ class RgbOwlv2DefectAdapter:
 
 def build_rgb_owlv2_defect_adapter() -> RgbOwlv2DefectAdapter:
     """Build the real OWLv2 adapter without importing model code at startup."""
-    from rgb_ext_infer import ExtInspector
+    from app.vendor.rgb_ext_infer import ExtInspector
 
     return RgbOwlv2DefectAdapter(
         inspector=ExtInspector(),
@@ -149,7 +149,7 @@ def build_rgb_owlv2_onnx_defect_adapter(
     model_dir: str = "/models/rgb_owlv2_onnx",
     providers=None,
 ) -> RgbOwlv2DefectAdapter:
-    from rgb_ext_infer_onnx import OnnxExtInspector
+    from app.vendor.rgb_ext_infer_onnx import OnnxExtInspector
 
     return RgbOwlv2DefectAdapter(
         inspector=OnnxExtInspector(

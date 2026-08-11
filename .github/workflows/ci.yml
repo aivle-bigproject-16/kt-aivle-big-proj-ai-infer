@@ -30,7 +30,7 @@ jobs:
         run: |
           pip install --index-url https://download.pytorch.org/whl/cpu \
             torch==2.11.0 torchvision==0.26.0
-          pip install --requirement requirements-dev.txt
+          pip install --requirement requirements/dev.txt
 
       - name: Run tests
         run: pytest -q
@@ -42,4 +42,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build container image
-        run: docker build --tag ai-infer:ci .
+        run: docker build --file docker/Dockerfile --tag ai-infer:ci .

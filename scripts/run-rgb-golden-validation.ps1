@@ -259,7 +259,7 @@ sudo docker run --rm --gpus all \
   -v "$WORK_DIR:/golden:ro" \
   -v "$WORK_DIR/hf-cache:/cache/huggingface" \
   --entrypoint python \
-  "$IMAGE" /app/rgb_ext_infer.py \
+  "$IMAGE" /app/app/vendor/rgb_ext_infer.py \
     --verify-fixture \
     --fixture /golden/golden_fixture_deploy.json \
     --images /golden/fixtures_deploy

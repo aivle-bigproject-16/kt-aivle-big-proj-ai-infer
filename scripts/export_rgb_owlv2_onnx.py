@@ -57,7 +57,7 @@ def main() -> int:
     from PIL import Image
     from transformers import Owlv2ForObjectDetection, Owlv2Processor
 
-    from rgb_ext_infer import NEG_MAP, QUERY_MAP
+    from app.vendor.rgb_ext_infer import NEG_MAP, QUERY_MAP
 
     args.output.mkdir(parents=True, exist_ok=True)
     processor = Owlv2Processor.from_pretrained(

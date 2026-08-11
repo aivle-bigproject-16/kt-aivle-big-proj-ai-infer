@@ -2,7 +2,7 @@ import io
 
 from PIL import Image
 
-from ct_defect_onnx import OnnxCtDefectAdapter
+from app.adapters.ct_defect_onnx import OnnxCtDefectAdapter
 
 
 class FakeScore:

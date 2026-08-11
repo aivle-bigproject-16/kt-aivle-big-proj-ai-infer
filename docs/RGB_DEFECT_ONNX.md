@@ -4,8 +4,9 @@
 
 - 모델 레포 `kt-aivle-big-proj-model-rgb`의 커밋 `09563fc`에서
   `ext_infer.py`와 `ext_requirements.lock.txt`를 원본 해시 그대로 가져왔다.
-  서버에서는 각각 `rgb_ext_infer.py`,
-  `requirements-rgb-defect.lock.txt`로 관리한다.
+  서버에서는 각각 `app/vendor/rgb_ext_infer.py`,
+  `requirements/rgb-defect-lock.txt`로 관리한다. `app/vendor/` 안의 파일은
+  원본 해시를 유지해야 하므로 수정하지 않는다.
 - 한 장의 이미지 바이트를 OWLv2의 `infer_frames()`에 전달한다.
 - 모델의 원본 좌표계 `bbox=[x1,y1,x2,y2]`를 서버 계약의
   `{x,y,width,height}`로 변환한다.
@@ -20,7 +21,7 @@
 ## 결함 유형 매핑
 
 모델은 한글 태그를 내고, 서버는 어댑터 경계
-(`rgb_owlv2_defect.TAG_TO_DEFECT_TYPE`)에서 계약 값으로 바꾼다.
+(`app.adapters.rgb_defect_owlv2.TAG_TO_DEFECT_TYPE`)에서 계약 값으로 바꾼다.
 
 | OWLv2 태그 | `defectType` |
 | --- | --- |
@@ -62,7 +63,7 @@
 현재 판정 경로에 없으므로 변환 대상이 아니다.
 
 ```powershell
-python -m pip install -r requirements-rgb-defect-onnx.txt
+python -m pip install -r requirements/rgb-defect-export.txt
 python -m scripts.export_rgb_owlv2_onnx `
   --output models/rgb_owlv2_onnx `
   --device cuda `
@@ -91,7 +92,7 @@ score 차이 0.002 이하이다. 실제 ONNX 파일은 용량이 크므로 Git�
 변환과 회귀 검증이 통과한 뒤 서버는 다음처럼 기동한다.
 
 ```powershell
-docker build -f Dockerfile.rgb-defect-onnx -t ai-infer:rgb-onnx .
+docker build -f docker/Dockerfile.gpu-onnx -t ai-infer:rgb-onnx .
 docker run --rm --gpus all -p 8000:8000 `
   -e INFERENCE_MODE=rgb-onnx `
   -e RGB_QUALITY_MODEL_PATH=/models/quality_rgb.onnx `

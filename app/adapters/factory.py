@@ -1,16 +1,16 @@
 from collections.abc import Callable
 
-from adapters import (
+from app.adapters.base import (
     InferenceAdapter,
     InferencePipeline,
     StubAdapter,
     StubDefectAdapter,
     StubQualityAdapter,
 )
-from onnx_quality_ct import OnnxCtQualityAdapter
-from onnx_quality_rgb import OnnxRgbQualityAdapter
-from ct_defect_onnx import OnnxCtDefectAdapter
-from settings import Settings
+from app.adapters.ct_quality_onnx import OnnxCtQualityAdapter
+from app.adapters.rgb_quality_onnx import OnnxRgbQualityAdapter
+from app.adapters.ct_defect_onnx import OnnxCtDefectAdapter
+from app.settings import Settings
 
 
 MODALITIES = ("ct", "rgb")
@@ -73,14 +73,14 @@ def _build_ct_defect(settings: Settings):
 
 def _build_rgb_defect(settings: Settings):
     try:
-        from rgb_owlv2_defect import (
+        from app.adapters.rgb_defect_owlv2 import (
             build_rgb_owlv2_onnx_defect_adapter,
         )
     except ImportError as exc:  # pragma: no cover - 이미지 구성 오류
         raise RuntimeError(
             "RGB defect model dependencies are missing. The CPU image "
             "ships stub and CT inference only; run RGB modes on the GPU "
-            "image built from Dockerfile.gpu-onnx."
+            "image built from docker/Dockerfile.gpu-onnx."
         ) from exc
 
     return build_rgb_owlv2_onnx_defect_adapter(

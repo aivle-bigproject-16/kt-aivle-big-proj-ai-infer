@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from rgb_ext_infer_onnx import (
+from app.vendor.rgb_ext_infer_onnx import (
     build_session_feed,
     postprocess_owlv2,
     resolve_onnx_model,

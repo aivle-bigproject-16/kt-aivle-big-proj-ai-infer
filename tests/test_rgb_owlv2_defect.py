@@ -1,6 +1,6 @@
 import pytest
 
-from rgb_owlv2_defect import (
+from app.adapters.rgb_defect_owlv2 import (
     RgbOwlv2DefectAdapter,
 )
 

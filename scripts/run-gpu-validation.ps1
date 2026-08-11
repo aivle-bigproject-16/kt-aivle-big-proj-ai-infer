@@ -241,8 +241,8 @@ import torch
 assert torch.cuda.is_available(), "PyTorch cannot access CUDA"
 ort.preload_dlls()
 
-from ct_defect_onnx import OnnxCtDefectAdapter
-from onnx_quality_ct import OnnxCtQualityAdapter
+from app.adapters.ct_defect_onnx import OnnxCtDefectAdapter
+from app.adapters.ct_quality_onnx import OnnxCtQualityAdapter
 
 image_bytes = Path("/fixtures/ct-image").read_bytes()
 providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]

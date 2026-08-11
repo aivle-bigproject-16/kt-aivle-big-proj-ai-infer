@@ -3,9 +3,9 @@ from dataclasses import replace
 
 from fastapi.testclient import TestClient
 
-import main
-from cell_analysis import build_callback, send_callback
-from schemas import CellAnalysisRequest
+from app import main
+from app.cell_analysis import build_callback, send_callback
+from app.schemas import CellAnalysisRequest
 
 
 client = TestClient(main.app)
@@ -108,7 +108,7 @@ class FixedAdapter:
 
 def test_callback_matches_backend_dto_and_reject_wins(monkeypatch):
     monkeypatch.setattr(
-        "cell_analysis.download_s3_image",
+        "app.cell_analysis.download_s3_image",
         lambda bucket, key: b"image",
     )
     request = CellAnalysisRequest.model_validate({
@@ -156,11 +156,11 @@ def test_callback_matches_backend_dto_and_reject_wins(monkeypatch):
 
 def test_operational_image_failure_marks_cell_failed(monkeypatch):
     def fail_download(bucket, key):
-        from downloader import ImageDownloadError
+        from app.download.http_image import ImageDownloadError
 
         raise ImageDownloadError("not found")
 
-    monkeypatch.setattr("cell_analysis.download_s3_image", fail_download)
+    monkeypatch.setattr("app.cell_analysis.download_s3_image", fail_download)
     request = CellAnalysisRequest.model_validate(REQUEST)
     callback = build_callback(request, {
         "RGB": FixedAdapter({}),
@@ -189,7 +189,7 @@ def test_callback_posts_backend_camel_case_contract_and_internal_key(
         recorded.update(kwargs)
         return Response()
 
-    monkeypatch.setattr("cell_analysis.httpx.post", fake_post)
+    monkeypatch.setattr("app.cell_analysis.httpx.post", fake_post)
 
     send_callback(
         request.callback_url,

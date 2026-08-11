@@ -3,7 +3,7 @@ import io
 import numpy as np
 from PIL import Image
 
-from onnx_quality_rgb import OnnxRgbQualityAdapter, preprocess_rgb_quality
+from app.adapters.rgb_quality_onnx import OnnxRgbQualityAdapter, preprocess_rgb_quality
 
 
 class FakeIo:

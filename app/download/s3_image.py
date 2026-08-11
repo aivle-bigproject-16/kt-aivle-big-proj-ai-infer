@@ -1,7 +1,7 @@
 import os
 from functools import lru_cache
 
-from downloader import ImageDownloadError
+from app.download.http_image import ImageDownloadError
 
 
 MAX_IMAGE_BYTES = int(

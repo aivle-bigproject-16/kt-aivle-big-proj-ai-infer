@@ -1,6 +1,6 @@
 from PIL import Image
 
-from rgb_ext_infer import ExtInspector
+from app.vendor.rgb_ext_infer import ExtInspector
 
 
 def _images():

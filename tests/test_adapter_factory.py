@@ -1,6 +1,6 @@
-from adapters import InferencePipeline, StubAdapter
-from adapter_factory import build_adapter
-from settings import Settings
+from app.adapters.base import InferencePipeline, StubAdapter
+from app.adapters.factory import build_adapter
+from app.settings import Settings
 
 
 def unified_settings() -> Settings:
@@ -22,11 +22,11 @@ def test_unified_onnx_mode_builds_ct_pipeline(monkeypatch):
     ct_defect = object()
 
     monkeypatch.setattr(
-        "adapter_factory.OnnxCtQualityAdapter",
+        "app.adapters.factory.OnnxCtQualityAdapter",
         lambda path, **kwargs: ct_quality,
     )
     monkeypatch.setattr(
-        "adapter_factory.OnnxCtDefectAdapter",
+        "app.adapters.factory.OnnxCtDefectAdapter",
         lambda *args, **kwargs: ct_defect,
     )
 
@@ -42,11 +42,11 @@ def test_unified_onnx_mode_builds_rgb_pipeline(monkeypatch):
     rgb_defect = object()
 
     monkeypatch.setattr(
-        "adapter_factory.OnnxRgbQualityAdapter",
+        "app.adapters.factory.OnnxRgbQualityAdapter",
         lambda path, **kwargs: rgb_quality,
     )
     monkeypatch.setattr(
-        "rgb_owlv2_defect.build_rgb_owlv2_onnx_defect_adapter",
+        "app.adapters.rgb_defect_owlv2.build_rgb_owlv2_onnx_defect_adapter",
         lambda path, **kwargs: rgb_defect,
     )
 
@@ -84,19 +84,19 @@ def test_cuda_mode_is_passed_to_all_onnx_adapters(monkeypatch):
         return object()
 
     monkeypatch.setattr(
-        "adapter_factory.OnnxCtQualityAdapter",
+        "app.adapters.factory.OnnxCtQualityAdapter",
         ct_quality,
     )
     monkeypatch.setattr(
-        "adapter_factory.OnnxCtDefectAdapter",
+        "app.adapters.factory.OnnxCtDefectAdapter",
         ct_defect,
     )
     monkeypatch.setattr(
-        "adapter_factory.OnnxRgbQualityAdapter",
+        "app.adapters.factory.OnnxRgbQualityAdapter",
         rgb_quality,
     )
     monkeypatch.setattr(
-        "rgb_owlv2_defect.build_rgb_owlv2_onnx_defect_adapter",
+        "app.adapters.rgb_defect_owlv2.build_rgb_owlv2_onnx_defect_adapter",
         rgb_defect,
     )
 
@@ -133,11 +133,11 @@ def test_quality_only_modes_still_receive_the_cuda_provider(monkeypatch):
         return build
 
     monkeypatch.setattr(
-        "adapter_factory.OnnxCtQualityAdapter",
+        "app.adapters.factory.OnnxCtQualityAdapter",
         record("ct_quality"),
     )
     monkeypatch.setattr(
-        "adapter_factory.OnnxRgbQualityAdapter",
+        "app.adapters.factory.OnnxRgbQualityAdapter",
         record("rgb_quality"),
     )
 
@@ -184,19 +184,19 @@ def test_configured_thresholds_reach_the_onnx_adapters(monkeypatch):
         return build
 
     monkeypatch.setattr(
-        "adapter_factory.OnnxCtQualityAdapter",
+        "app.adapters.factory.OnnxCtQualityAdapter",
         record("ct_quality"),
     )
     monkeypatch.setattr(
-        "adapter_factory.OnnxCtDefectAdapter",
+        "app.adapters.factory.OnnxCtDefectAdapter",
         record("ct_defect"),
     )
     monkeypatch.setattr(
-        "adapter_factory.OnnxRgbQualityAdapter",
+        "app.adapters.factory.OnnxRgbQualityAdapter",
         record("rgb_quality"),
     )
     monkeypatch.setattr(
-        "rgb_owlv2_defect.build_rgb_owlv2_onnx_defect_adapter",
+        "app.adapters.rgb_defect_owlv2.build_rgb_owlv2_onnx_defect_adapter",
         record("rgb_defect"),
     )
 

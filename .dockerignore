@@ -1,16 +1,18 @@
+# 이미지는 app/ 과 requirements/ 만 COPY 한다. 나머지는 컨텍스트에서 뺀다.
 .git
 .github
 .gitignore
 .env
-__pycache__
-*.pyc
-.pytest_cache
 .venv
-work
-tests
+.pytest_cache
+**/__pycache__
+**/*.pyc
+docker
 docs
 scripts
+tests
 deployment
+work
 models
 *.md
 rgb-golden-*.log

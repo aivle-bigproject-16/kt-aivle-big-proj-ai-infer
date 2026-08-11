@@ -1,4 +1,4 @@
-from adapters import InferencePipeline
+from app.adapters.base import InferencePipeline
 
 
 class FixedQualityAdapter:

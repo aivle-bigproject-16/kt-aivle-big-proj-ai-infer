@@ -1,9 +1,9 @@
 import os
 from dataclasses import dataclass
 
-from ct_defect_onnx import DEFAULT_CONF_THRESHOLD
-from onnx_quality_ct import DEFAULT_THRESHOLD as CT_QUALITY_THRESHOLD
-from onnx_quality_rgb import FAIL_THRESHOLD as RGB_QUALITY_FAIL_THRESHOLD
+from app.adapters.ct_defect_onnx import DEFAULT_CONF_THRESHOLD
+from app.adapters.ct_quality_onnx import DEFAULT_THRESHOLD as CT_QUALITY_THRESHOLD
+from app.adapters.rgb_quality_onnx import FAIL_THRESHOLD as RGB_QUALITY_FAIL_THRESHOLD
 
 
 @dataclass(frozen=True)

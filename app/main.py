@@ -9,17 +9,17 @@ from time import perf_counter, sleep
 
 from fastapi import FastAPI, Header, HTTPException, status
 
-from adapter_factory import build_adapter
-from adapters import InferenceAdapter
-from cell_analysis import process_cell_analysis
-from downloader import ImageDownloadError, download_image
-from schemas import (
+from app.adapters.factory import build_adapter
+from app.adapters.base import InferenceAdapter
+from app.cell_analysis import process_cell_analysis
+from app.download.http_image import ImageDownloadError, download_image
+from app.schemas import (
     CellAnalysisAccepted,
     CellAnalysisRequest,
     InferRequest,
     InferResponse,
 )
-from settings import load_settings
+from app.settings import load_settings
 
 
 logger = logging.getLogger(__name__)

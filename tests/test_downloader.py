@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-import downloader
+from app.download import http_image as downloader
 
 
 def _transport(*, body: bytes, content_type: str = "image/png", status: int = 200):

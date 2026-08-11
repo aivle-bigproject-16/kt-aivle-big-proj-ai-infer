@@ -2,8 +2,8 @@ import argparse
 import json
 from pathlib import Path
 
-from rgb_ext_infer import Config, ExtInspector
-from rgb_ext_infer_onnx import OnnxExtInspector
+from app.vendor.rgb_ext_infer import Config, ExtInspector
+from app.vendor.rgb_ext_infer_onnx import OnnxExtInspector
 
 
 def parse_args() -> argparse.Namespace:

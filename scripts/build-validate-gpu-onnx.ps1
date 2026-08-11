@@ -7,7 +7,7 @@ Set-Location $repo
 
 Write-Host "`n=== Build unified GPU ONNX image ===" -ForegroundColor Cyan
 docker build `
-    --file Dockerfile.gpu-onnx `
+    --file docker/Dockerfile.gpu-onnx `
     --tag $image `
     .
 

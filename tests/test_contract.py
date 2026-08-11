@@ -2,9 +2,9 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import TypeAdapter, ValidationError
 
-import main
-from rgb_owlv2_defect import TAG_TO_DEFECT_TYPE
-from schemas import DefectType
+from app import main
+from app.adapters.rgb_defect_owlv2 import TAG_TO_DEFECT_TYPE
+from app.schemas import DefectType
 
 
 client = TestClient(main.app)

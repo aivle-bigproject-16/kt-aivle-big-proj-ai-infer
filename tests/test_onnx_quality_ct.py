@@ -3,7 +3,7 @@ import io
 import numpy as np
 from PIL import Image
 
-from onnx_quality_ct import OnnxCtQualityAdapter, preprocess_ct_quality
+from app.adapters.ct_quality_onnx import OnnxCtQualityAdapter, preprocess_ct_quality
 
 
 class FakeIo:

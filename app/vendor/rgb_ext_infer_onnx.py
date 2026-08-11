@@ -5,7 +5,7 @@ from typing import Mapping, Sequence
 import numpy as np
 from PIL import Image
 
-from rgb_ext_infer import DROP_TAGS, ExtInspector
+from app.vendor.rgb_ext_infer import DROP_TAGS, ExtInspector
 
 
 def resolve_onnx_model(model_dir: str | Path) -> Path:

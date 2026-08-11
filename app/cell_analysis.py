@@ -3,10 +3,10 @@ from time import perf_counter, sleep
 
 import httpx
 
-from adapters import InferenceAdapter
-from downloader import ImageDownloadError
-from s3_downloader import download_s3_image
-from schemas import (
+from app.adapters.base import InferenceAdapter
+from app.download.http_image import ImageDownloadError
+from app.download.s3_image import download_s3_image
+from app.schemas import (
     CallbackDefect,
     CellAnalysisCallback,
     CellAnalysisRequest,

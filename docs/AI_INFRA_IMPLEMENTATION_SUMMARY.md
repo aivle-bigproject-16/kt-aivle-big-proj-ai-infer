@@ -309,16 +309,16 @@ CT 문서와 실행 경로에서 640/1280 설명이 혼재했다. 실제 체크�
 
 | 파일 | 역할 |
 | --- | --- |
-| `main.py` | FastAPI 엔드포인트 및 공통 추론 처리 |
-| `adapters.py` | 품질 우선 파이프라인 |
-| `adapter_factory.py` | CT/RGB 및 CPU/GPU 어댑터 조립 |
-| `onnx_quality_ct.py` | CT 품질 ONNX 전처리·추론 |
-| `ct_defect_onnx.py` | CT YOLO-seg+SAHI ONNX 추론 |
-| `onnx_quality_rgb.py` | RGB 품질 ONNX 전처리·추론 |
-| `rgb_ext_infer_onnx.py` | RGB OWLv2 ONNX 추론 |
-| `rgb_owlv2_defect.py` | RGB 모델 결과를 API 계약으로 변환 |
-| `gpu_runtime.py` | CUDA/cuDNN preload 후 FastAPI 시작 |
-| `Dockerfile.gpu-onnx` | 통합 GPU 런타임 이미지 |
+| `app/main.py` | FastAPI 엔드포인트 및 공통 추론 처리 |
+| `app/adapters/base.py` | 품질 우선 파이프라인 |
+| `app/adapters/factory.py` | CT/RGB 및 CPU/GPU 어댑터 조립 |
+| `app/adapters/ct_quality_onnx.py` | CT 품질 ONNX 전처리·추론 |
+| `app/adapters/ct_defect_onnx.py` | CT YOLO-seg+SAHI ONNX 추론 |
+| `app/adapters/rgb_quality_onnx.py` | RGB 품질 ONNX 전처리·추론 |
+| `app/vendor/rgb_ext_infer_onnx.py` | RGB OWLv2 ONNX 추론 |
+| `app/adapters/rgb_defect_owlv2.py` | RGB 모델 결과를 API 계약으로 변환 |
+| `app/gpu_runtime.py` | CUDA/cuDNN preload 후 FastAPI 시작 |
+| `docker/Dockerfile.gpu-onnx` | 통합 GPU 런타임 이미지 |
 | `deployment/model-manifest.json` | S3 모델 번들 무결성 명세 |
 | `scripts/run-gpu-validation.ps1` | GPU 직접·API 통합검증 |
 | `scripts/launch-gpu-validation.ps1` | 임시 GPU EC2 생성 |
