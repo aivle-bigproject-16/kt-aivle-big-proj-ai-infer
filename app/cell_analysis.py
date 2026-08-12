@@ -17,6 +17,29 @@ from app.schemas import (
 logger = logging.getLogger(__name__)
 
 
+# Proposed by infra and still awaiting formal backend confirmation. Keep the
+# four situation-to-contract rows centralized here so callback behavior cannot
+# drift independently across exception paths.
+ASSUMED_BACKEND_CALLBACK_MAPPING = {
+    "capture_or_quality_fail": {
+        "cell_status": "FAILED",
+        "failure_type": "CAPTURE",
+    },
+    "image_download_failure": {
+        "cell_status": "FAILED",
+        "failure_type": "AI",
+    },
+    "model_load_or_inference_failure": {
+        "cell_status": "FAILED",
+        "failure_type": "AI",
+    },
+    "normal_completion": {
+        "cell_status": "COMPLETED",
+        "failure_type": None,
+    },
+}
+
+
 def _callback_defects(defects: list[dict]) -> list[CallbackDefect]:
     converted = []
     for defect in defects:
@@ -57,6 +80,37 @@ def _cell_confidence(
     if final_label == "PASS":
         return min(decisive)
     return max(decisive)
+
+
+def _callback_situation(results: list[ImageAnalysisResult]) -> str:
+    if any(
+        result.error_code == "IMAGE_DOWNLOAD_FAILED" for result in results
+    ):
+        return "image_download_failure"
+    if any(result.error_code for result in results):
+        return "model_load_or_inference_failure"
+    if any(result.label == "FAIL" for result in results):
+        return "capture_or_quality_fail"
+    return "normal_completion"
+
+
+def _failure_reason(
+    situation: str,
+    results: list[ImageAnalysisResult],
+) -> str | None:
+    if situation == "normal_completion":
+        return None
+    if situation == "capture_or_quality_fail":
+        return "; ".join(
+            f"image {result.image_id}: CAPTURE_OR_QUALITY_FAIL"
+            for result in results
+            if result.label == "FAIL"
+        )
+    return "; ".join(
+        f"image {result.image_id}: {result.error_code}"
+        for result in results
+        if result.error_code
+    )
 
 
 def _analyze_image(image, adapter: InferenceAdapter) -> ImageAnalysisResult:
@@ -119,17 +173,15 @@ def build_callback(
             continue
         results.append(_analyze_image(image, adapter))
 
-    failed = [result for result in results if result.error_code]
-    cell_status = "FAILED" if failed else "COMPLETED"
-    final_label = "FAIL" if failed else _final_label(results)
-    confidence = _cell_confidence(final_label, results)
-    failure_reason = (
-        "; ".join(
-            f"image {result.image_id}: {result.error_code}"
-            for result in failed
-        )
-        or None
+    situation = _callback_situation(results)
+    contract = ASSUMED_BACKEND_CALLBACK_MAPPING[situation]
+    cell_status = contract["cell_status"]
+    failure_type = contract["failure_type"]
+    final_label = (
+        _final_label(results) if situation == "normal_completion" else None
     )
+    confidence = _cell_confidence(final_label or "FAIL", results)
+    failure_reason = _failure_reason(situation, results)
 
     from datetime import datetime, timezone
 
@@ -141,6 +193,7 @@ def build_callback(
         cell_serial_no=request.cell_serial_no,
         cell_status=cell_status,
         final_label=final_label,
+        failure_type=failure_type,
         failure_reason=failure_reason,
         confidence=confidence,
         completed_at=datetime.now(timezone.utc),

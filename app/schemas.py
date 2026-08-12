@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 Label = Literal["PASS", "REJECT", "FAIL"]
@@ -125,7 +125,26 @@ class CellAnalysisCallback(BackendContractModel):
     cell_serial_no: str
     cell_status: Literal["COMPLETED", "FAILED"]
     final_label: Label | None
+    failure_type: Literal["CAPTURE", "AI"] | None
     failure_reason: str | None
     confidence: float = Field(ge=0.0, le=1.0)
     completed_at: datetime
     image_results: list[ImageAnalysisResult]
+
+    @model_validator(mode="after")
+    def validate_backend_status_contract(self):
+        if self.cell_status == "FAILED":
+            if self.failure_type is None:
+                raise ValueError("FAILED callback requires failure_type")
+            if self.failure_reason is None or not self.failure_reason.strip():
+                raise ValueError("FAILED callback requires failure_reason")
+            if self.final_label is not None:
+                raise ValueError("FAILED callback requires final_label=None")
+        else:
+            if self.final_label not in {"PASS", "REJECT"}:
+                raise ValueError(
+                    "COMPLETED callback requires final_label PASS or REJECT"
+                )
+            if self.failure_type is not None or self.failure_reason is not None:
+                raise ValueError("COMPLETED callback must not include failure data")
+        return self

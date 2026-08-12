@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from dataclasses import replace
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app import main
@@ -106,6 +107,11 @@ class FixedAdapter:
         return self.prediction
 
 
+class RaisingAdapter:
+    def predict(self, image_bytes):
+        raise RuntimeError("inference exploded")
+
+
 def test_callback_matches_backend_dto_and_reject_wins(monkeypatch):
     monkeypatch.setattr(
         "app.cell_analysis.download_s3_image",
@@ -154,7 +160,28 @@ def test_callback_matches_backend_dto_and_reject_wins(monkeypatch):
     assert body["imageResults"][0]["rawResponse"]["label"] == "REJECT"
 
 
-def test_operational_image_failure_marks_cell_failed(monkeypatch):
+def test_callback_mapping_row_1_quality_fail_is_capture_failure(monkeypatch):
+    monkeypatch.setattr(
+        "app.cell_analysis.download_s3_image",
+        lambda bucket, key: b"image",
+    )
+    request = CellAnalysisRequest.model_validate(REQUEST)
+    callback = build_callback(request, {
+        "RGB": FixedAdapter({
+            "label": "FAIL",
+            "confidence": 0.25,
+            "defects": [],
+        }),
+    })
+
+    body = callback.model_dump(mode="json", by_alias=True)
+    assert body["cellStatus"] == "FAILED"
+    assert body["failureType"] == "CAPTURE"
+    assert body["failureReason"] == "image 40: CAPTURE_OR_QUALITY_FAIL"
+    assert body["finalLabel"] is None
+
+
+def test_callback_mapping_row_2_download_failure_is_ai_failure(monkeypatch):
     def fail_download(bucket, key):
         from app.download.http_image import ImageDownloadError
 
@@ -169,8 +196,63 @@ def test_operational_image_failure_marks_cell_failed(monkeypatch):
 
     body = callback.model_dump(mode="json", by_alias=True)
     assert body["cellStatus"] == "FAILED"
-    assert body["finalLabel"] == "FAIL"
+    assert body["failureType"] == "AI"
+    assert body["failureReason"] == "image 40: IMAGE_DOWNLOAD_FAILED"
+    assert body["finalLabel"] is None
     assert body["imageResults"][0]["errorCode"] == "IMAGE_DOWNLOAD_FAILED"
+
+
+@pytest.mark.parametrize(
+    ("adapter", "expected_error_code"),
+    [
+        (None, "ADAPTER_UNAVAILABLE"),
+        (RaisingAdapter(), "INFERENCE_FAILED"),
+    ],
+    ids=["model-load", "inference"],
+)
+def test_callback_mapping_row_3_model_or_inference_failure_is_ai_failure(
+    monkeypatch,
+    adapter,
+    expected_error_code,
+):
+    monkeypatch.setattr(
+        "app.cell_analysis.download_s3_image",
+        lambda bucket, key: b"image",
+    )
+    request = CellAnalysisRequest.model_validate(REQUEST)
+    callback = build_callback(request, {"RGB": adapter})
+
+    body = callback.model_dump(mode="json", by_alias=True)
+    assert body["cellStatus"] == "FAILED"
+    assert body["failureType"] == "AI"
+    assert expected_error_code in body["failureReason"]
+    assert body["finalLabel"] is None
+    assert body["imageResults"][0]["errorCode"] == expected_error_code
+
+
+@pytest.mark.parametrize("label", ["PASS", "REJECT"])
+def test_callback_mapping_row_4_normal_completion_has_backend_final_label(
+    monkeypatch,
+    label,
+):
+    monkeypatch.setattr(
+        "app.cell_analysis.download_s3_image",
+        lambda bucket, key: b"image",
+    )
+    request = CellAnalysisRequest.model_validate(REQUEST)
+    callback = build_callback(request, {
+        "RGB": FixedAdapter({
+            "label": label,
+            "confidence": 0.9,
+            "defects": [],
+        }),
+    })
+
+    body = callback.model_dump(mode="json", by_alias=True)
+    assert body["cellStatus"] == "COMPLETED"
+    assert body["failureType"] is None
+    assert body["failureReason"] is None
+    assert body["finalLabel"] == label
 
 
 def test_callback_posts_backend_camel_case_contract_and_internal_key(
