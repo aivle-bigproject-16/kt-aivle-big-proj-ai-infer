@@ -6,15 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 Label = Literal["PASS", "REJECT", "FAIL"]
 
-# 계약 §6.5 / A-5: 와이어 표기는 영문 4종 고정이다. 모델이 내는 한글 라벨은
-# 어댑터 경계(app.adapters.rgb_defect_owlv2.TAG_TO_DEFECT_TYPE)에서 이 4종으로
-# 변환한다.
-DefectType = Literal[
-    "SWELLING",
-    "SPOT",
-    "MICRO_DEFECT",
-    "CRACK",
-]
+# 모델이 내는 영문 결함 라벨을 그대로 사용한다. 한글 라벨의 경우 영문으로 매핑하여 전달한다.
+DefectType = str
 
 
 class InferRequest(BaseModel):
@@ -115,6 +108,8 @@ class ImageAnalysisResult(BackendContractModel):
     latency_ms: int = Field(ge=0)
     error_code: str | None
     error_message: str | None
+    fail_type: str | None = None
+    description: str | None = None
 
 
 class CellAnalysisCallback(BackendContractModel):
