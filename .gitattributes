@@ -1,0 +1,8 @@
+# 셸 스크립트는 어디에서 체크아웃하든 LF 로 받는다.
+# 팀 개발기는 윈도우이고 core.autocrlf 가 켜져 있어, 이 규칙이 없으면 작업 사본이
+# CRLF 로 바뀐다. 그 파일을 리눅스 배포 호스트에서 실행하면 셔뱅 끝에 CR 이 붙어
+# `/usr/bin/env: 'bash\r': No such file or directory` 로 죽는다.
+*.sh text eol=lf
+
+# PowerShell 스크립트는 반대로 윈도우에서만 쓰므로 CRLF 로 둔다.
+*.ps1 text eol=crlf
