@@ -75,8 +75,6 @@ def _analyze_image(image, adapter: InferenceAdapter) -> ImageAnalysisResult:
             latency_ms=latency_ms,
             error_code=None,
             error_message=None,
-            fail_type=prediction.get("fail_type"),
-            description=prediction.get("description"),
         )
     except Exception as exc:
         latency_ms = max(0, round((perf_counter() - started_at) * 1000))
@@ -159,10 +157,6 @@ def send_callback(
 ) -> None:
     headers = {"X-Internal-Api-Key": internal_api_key}
     payload = callback.model_dump(mode="json", by_alias=True)
-    import json
-    print("\n=== [DEBUG] SENDING CALLBACK PAYLOAD ===")
-    print(json.dumps(payload, indent=2, ensure_ascii=False))
-    print("========================================\n")
     last_error: Exception | None = None
 
     for attempt in range(1, max_attempts + 1):

@@ -22,9 +22,6 @@ def download_s3_image(bucket_name: str, object_key: str) -> bytes:
     if ".." in object_key.split("/"):
         raise ImageDownloadError("invalid S3 object key")
 
-    if os.getenv("TEST_MOCK_S3") == "1" or bucket_name == "test-bucket":
-        return b"DUMMY_IMAGE_DATA_FOR_TESTING"
-
     try:
         response = _s3_client().get_object(
             Bucket=bucket_name,

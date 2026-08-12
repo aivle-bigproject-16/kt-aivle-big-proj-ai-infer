@@ -58,49 +58,30 @@ class OnnxRgbQualityAdapter:
         self.output_name = self.session.get_outputs()[0].name
 
     def predict_quality(self, image_bytes: bytes) -> dict:
-        import json
-        try:
-            json_data = json.loads(image_bytes.decode('utf-8'))
-            if json_data.get("status") == "COMPLETED" and json_data.get("content"):
-                content = json_data["content"][0]
-                if "failType" in content:
-                    return {
-                        "label": "FAIL",
-                        "confidence": 1.0,
-                        "fail_type": content["failType"],
-                        "description": content.get("description", ""),
-                    }
+        tensor = preprocess_rgb_quality(image_bytes)
+        output = self.session.run(
+            [self.output_name],
+            {self.input_name: tensor},
+        )[0]
+        probabilities = np.asarray(output, dtype=np.float32).reshape(-1)
+
+        if probabilities.size != 2:
+            raise RuntimeError(
+                f"expected two RGB quality probabilities, got {probabilities.size}"
+            )
+
+        # 채널 순서는 학습 때 Keras 가 클래스 디렉터리 이름을 사전순으로 매긴
+        # 결과다 — 0 = fail, 1 = pass. 모델을 다시 내보내면 이 가정부터 확인한다.
+        fail_probability = float(probabilities[0])
+        pass_probability = float(probabilities[1])
+
+        if fail_probability >= self.fail_threshold:
             return {
-                "label": "PASS",
-                "confidence": 1.0,
+                "label": "FAIL",
+                "confidence": round(fail_probability, 6),
             }
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            tensor = preprocess_rgb_quality(image_bytes)
-            output = self.session.run(
-                [self.output_name],
-                {self.input_name: tensor},
-            )[0]
-            probabilities = np.asarray(output, dtype=np.float32).reshape(-1)
 
-            if probabilities.size != 2:
-                raise RuntimeError(
-                    f"expected two RGB quality probabilities, got {probabilities.size}"
-                )
-
-            # 채널 순서는 학습 때 Keras 가 클래스 디렉터리 이름을 사전순으로 매긴
-            # 결과다 — 0 = fail, 1 = pass. 모델을 다시 내보내면 이 가정부터 확인한다.
-            fail_probability = float(probabilities[0])
-            pass_probability = float(probabilities[1])
-
-            if fail_probability >= self.fail_threshold:
-                return {
-                    "label": "FAIL",
-                    "confidence": round(fail_probability, 6),
-                    "fail_type": "rgb_quality_failure",
-                    "description": "RGB Image failed quality check",
-                }
-
-            return {
-                "label": "PASS",
-                "confidence": round(pass_probability, 6),
-            }
+        return {
+            "label": "PASS",
+            "confidence": round(pass_probability, 6),
+        }

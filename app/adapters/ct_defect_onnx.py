@@ -59,40 +59,78 @@ class OnnxCtDefectAdapter:
         self.predictor = predictor
 
     def predict_defects(self, image_bytes: bytes) -> dict:
-        import json
-        
-        # 외부 API 등에서 JSON 응답을 받아왔다고 가정하고 처리
-        try:
-            json_data = json.loads(image_bytes.decode('utf-8'))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            # 실제 이미지 바이트가 들어오면 기본 더미 데이터를 반환 (테스트 용도)
-            json_data = {
-                "verdict": "REJECT",
-                "detections": [
-                    {
-                        "class": "porosity",
-                        "confidence": 0.0617,
-                        "bbox_xywh": [240, 2218, 5, 468]
-                    }
-                ]
-            }
+        if not image_bytes:
+            raise ValueError("image_bytes must not be empty")
+
+        with Image.open(io.BytesIO(image_bytes)) as source:
+            image = source.convert("RGB")
+            prediction = self.predictor(
+                image=image,
+                detection_model=self.detection_model,
+                slice_height=1280,
+                slice_width=1280,
+                overlap_height_ratio=0.2,
+                overlap_width_ratio=0.2,
+                perform_standard_pred=True,
+                postprocess_type=self.postprocess_type,
+                postprocess_match_metric=(
+                    self.postprocess_match_metric
+                ),
+                postprocess_match_threshold=(
+                    self.postprocess_match_threshold
+                ),
+                verbose=0,
+            )
 
         defects = []
-        for det in json_data.get("detections", []):
-            bbox = det["bbox_xywh"]
-            defects.append({
-                "defectType": det["class"], # 영어 그대로 전송
-                "confidence": det["confidence"],
-                "bbox": {
-                    "x": bbox[0],
-                    "y": bbox[1],
-                    "width": bbox[2],
-                    "height": bbox[3],
-                },
-            })
+        rejected_scores = []
+
+        for item in prediction.object_prediction_list:
+            if item.category.name != "porosity":
+                raise ValueError(
+                    "unsupported CT defect class: "
+                    f"{item.category.name}"
+                )
+
+            minx = float(item.bbox.minx)
+            miny = float(item.bbox.miny)
+            maxx = float(item.bbox.maxx)
+            maxy = float(item.bbox.maxy)
+            confidence = float(item.score.value)
+
+            if confidence < self.conf_threshold:
+                rejected_scores.append(confidence)
+                continue
+
+            defects.append(
+                {
+                    "defectType": "MICRO_DEFECT",
+                    "confidence": confidence,
+                    "bbox": {
+                        "x": minx,
+                        "y": miny,
+                        "width": maxx - minx,
+                        "height": maxy - miny,
+                    },
+                }
+            )
+
+        if not defects:
+            # A-4: PASS 의 최상위 confidence = 1 - (임계값 미만 최고 결함 점수).
+            # 후보가 아예 없으면 1.0 이다.
+            top_rejected = max(rejected_scores, default=0.0)
+            confidence = min(max(1.0 - top_rejected, 0.0), 1.0)
+
+            return {
+                "label": "PASS",
+                "confidence": round(confidence, 6),
+                "defects": [],
+            }
 
         return {
-            "label": json_data.get("verdict", "PASS"),
-            "confidence": 1.0,
+            "label": "REJECT",
+            "confidence": max(
+                defect["confidence"] for defect in defects
+            ),
             "defects": defects,
         }
