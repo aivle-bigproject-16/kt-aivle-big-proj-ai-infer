@@ -4,6 +4,7 @@ from pydantic import TypeAdapter, ValidationError
 
 from app import main
 from app.adapters.rgb_defect_owlv2 import TAG_TO_DEFECT_TYPE
+from app.performance_metrics import PerformanceMetrics
 from app.schemas import DefectType
 
 
@@ -188,3 +189,30 @@ def test_latency_includes_internal_processing_time(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["latency_ms"] == 125
+
+
+def test_performance_metrics_report_recent_ct_latency(monkeypatch):
+    metrics = PerformanceMetrics(("ct", "rgb"), window_size=3)
+    ticks = iter([100.0, 100.1, 200.0, 200.3])
+    monkeypatch.setattr(main, "PERFORMANCE_METRICS", metrics)
+    monkeypatch.setattr(main, "perf_counter", lambda: next(ticks))
+    monkeypatch.setattr(main, "LATENCY_MS", 0)
+
+    assert client.post("/infer/ct", json=REQUEST).status_code == 200
+    assert client.post("/infer/ct", json=REQUEST).status_code == 200
+
+    body = client.get("/metrics/performance").json()
+    ct = body["operations"]["ct"]
+    assert ct == {
+        "total_requests": 2,
+        "total_successes": 2,
+        "total_failures": 0,
+        "window_samples": 2,
+        "avg_ms": 200.0,
+        "p50_ms": 100,
+        "p95_ms": 300,
+        "min_ms": 100,
+        "max_ms": 300,
+        "last_ms": 300,
+    }
+    assert body["operations"]["rgb"]["window_samples"] == 0
