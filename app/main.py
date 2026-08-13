@@ -169,6 +169,7 @@ def analyze_cell(
                 SETTINGS.internal_api_key,
                 SETTINGS.callback_timeout_seconds,
                 SETTINGS.callback_max_attempts,
+                SETTINGS.cell_capture_fail_ratio_threshold,
             )
         )
     except Exception:

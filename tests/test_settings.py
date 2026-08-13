@@ -50,3 +50,22 @@ def test_invalid_ct_postprocess_metric_is_rejected(monkeypatch):
 
     with pytest.raises(ValueError, match="CT_POSTPROCESS_MATCH_METRIC"):
         load_settings()
+
+
+def test_cell_capture_fail_ratio_threshold_defaults_to_five_percent(
+    monkeypatch,
+):
+    monkeypatch.delenv("CELL_CAPTURE_FAIL_RATIO_THRESHOLD", raising=False)
+
+    assert load_settings().cell_capture_fail_ratio_threshold == 0.05
+
+
+@pytest.mark.parametrize("value", ["0", "1.1", "-0.1"])
+def test_invalid_cell_capture_fail_ratio_threshold_is_rejected(
+    monkeypatch,
+    value,
+):
+    monkeypatch.setenv("CELL_CAPTURE_FAIL_RATIO_THRESHOLD", value)
+
+    with pytest.raises(ValueError):
+        load_settings()
