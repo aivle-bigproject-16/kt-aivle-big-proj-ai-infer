@@ -1,5 +1,6 @@
 import os
 import random
+from time import perf_counter
 from typing import Protocol
 
 
@@ -108,16 +109,51 @@ class InferencePipeline:
         self.defect_adapter = defect_adapter
 
     def predict(self, image_bytes: bytes) -> dict:
+        prediction, _ = self.predict_with_timings(image_bytes)
+        return prediction
+
+    def predict_with_timings(
+        self,
+        image_bytes: bytes,
+    ) -> tuple[dict, dict[str, int]]:
+        pipeline_started_at = perf_counter()
+        quality_started_at = perf_counter()
         quality = self.quality_adapter.predict_quality(image_bytes)
+        quality_ms = max(
+            0,
+            round((perf_counter() - quality_started_at) * 1000),
+        )
 
         if quality["label"] == "FAIL":
-            return {
+            prediction = {
                 "label": "FAIL",
                 "confidence": quality["confidence"],
                 "defects": [],
             }
+            timings = {
+                "quality_ms": quality_ms,
+                "pipeline_ms": max(
+                    0,
+                    round((perf_counter() - pipeline_started_at) * 1000),
+                ),
+            }
+            return prediction, timings
 
-        return self.defect_adapter.predict_defects(image_bytes)
+        defect_started_at = perf_counter()
+        prediction = self.defect_adapter.predict_defects(image_bytes)
+        defect_ms = max(
+            0,
+            round((perf_counter() - defect_started_at) * 1000),
+        )
+        timings = {
+            "quality_ms": quality_ms,
+            "defect_ms": defect_ms,
+            "pipeline_ms": max(
+                0,
+                round((perf_counter() - pipeline_started_at) * 1000),
+            ),
+        }
+        return prediction, timings
 
 
 class StubAdapter:
@@ -149,3 +185,9 @@ class StubAdapter:
 
     def predict(self, image_bytes: bytes) -> dict:
         return self.pipeline.predict(image_bytes)
+
+    def predict_with_timings(
+        self,
+        image_bytes: bytes,
+    ) -> tuple[dict, dict[str, int]]:
+        return self.pipeline.predict_with_timings(image_bytes)

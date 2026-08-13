@@ -179,7 +179,7 @@ def test_unexpected_adapter_failure_answers_with_500(monkeypatch):
 
 
 def test_latency_includes_internal_processing_time(monkeypatch):
-    ticks = iter([100.0, 100.125])
+    ticks = iter([100.0, 100.0, 100.0, 100.125])
     monkeypatch.setattr(main, "perf_counter", lambda: next(ticks))
     monkeypatch.setattr(main, "LATENCY_MS", 0)
     monkeypatch.setattr(main.CT_ADAPTER, "reject_rate", 0.0)
@@ -191,9 +191,33 @@ def test_latency_includes_internal_processing_time(monkeypatch):
     assert response.json()["latency_ms"] == 125
 
 
+def test_inference_exposes_stage_timings_without_changing_json_contract(
+    monkeypatch,
+):
+    monkeypatch.setattr(main, "LATENCY_MS", 0)
+
+    response = client.post("/infer/ct", json=REQUEST)
+
+    assert response.status_code == 200
+    assert response.headers["server-timing"] == (
+        "download;dur=0, quality;dur=0, defect;dur=0, "
+        "pipeline;dur=0, total;dur=0"
+    )
+    assert "timings" not in response.json()
+
+
 def test_performance_metrics_report_recent_ct_latency(monkeypatch):
     metrics = PerformanceMetrics(("ct", "rgb"), window_size=3)
-    ticks = iter([100.0, 100.1, 200.0, 200.3])
+    ticks = iter([
+        100.0,
+        100.0,
+        100.0,
+        100.1,
+        200.0,
+        200.0,
+        200.0,
+        200.3,
+    ])
     monkeypatch.setattr(main, "PERFORMANCE_METRICS", metrics)
     monkeypatch.setattr(main, "perf_counter", lambda: next(ticks))
     monkeypatch.setattr(main, "LATENCY_MS", 0)

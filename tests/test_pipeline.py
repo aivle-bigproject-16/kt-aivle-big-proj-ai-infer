@@ -54,3 +54,28 @@ def test_pass_runs_defect_inference():
 
     assert result["label"] == "REJECT"
     assert defect.called is True
+
+
+def test_pipeline_reports_quality_and_defect_stage_timings():
+    defect = RecordingDefectAdapter()
+    pipeline = InferencePipeline(
+        quality_adapter=FixedQualityAdapter("PASS", 1.0),
+        defect_adapter=defect,
+    )
+
+    result, timings = pipeline.predict_with_timings(b"image")
+
+    assert result["label"] == "REJECT"
+    assert set(timings) == {"quality_ms", "defect_ms", "pipeline_ms"}
+    assert all(value >= 0 for value in timings.values())
+
+
+def test_fail_timing_omits_skipped_defect_stage():
+    pipeline = InferencePipeline(
+        quality_adapter=FixedQualityAdapter("FAIL", 0.8),
+        defect_adapter=RecordingDefectAdapter(),
+    )
+
+    _, timings = pipeline.predict_with_timings(b"image")
+
+    assert set(timings) == {"quality_ms", "pipeline_ms"}

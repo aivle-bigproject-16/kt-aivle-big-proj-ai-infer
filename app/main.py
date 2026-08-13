@@ -7,7 +7,7 @@ from functools import partial
 from threading import BoundedSemaphore
 from time import perf_counter, sleep
 
-from fastapi import FastAPI, Header, HTTPException, status
+from fastapi import FastAPI, Header, HTTPException, Response, status
 
 from app.adapters.factory import build_adapter
 from app.adapters.base import InferenceAdapter
@@ -69,6 +69,7 @@ def _infer(
     modality: str,
     adapter: InferenceAdapter | None,
     adapter_error: str | None,
+    response: Response,
 ) -> dict:
     if adapter is None:
         raise HTTPException(
@@ -78,12 +79,30 @@ def _infer(
 
     started_at = perf_counter()
     try:
+        download_started_at = perf_counter()
         image_bytes = download_image(req.image_url)
+        download_ms = max(
+            0,
+            round((perf_counter() - download_started_at) * 1000),
+        )
 
         if SETTINGS.inference_mode == "stub":
             sleep(LATENCY_MS / 1000)
 
-        prediction = adapter.predict(image_bytes)
+        predict_with_timings = getattr(adapter, "predict_with_timings", None)
+        if predict_with_timings is None:
+            prediction_started_at = perf_counter()
+            prediction = adapter.predict(image_bytes)
+            stage_timings = {
+                "pipeline_ms": max(
+                    0,
+                    round(
+                        (perf_counter() - prediction_started_at) * 1000
+                    ),
+                ),
+            }
+        else:
+            prediction, stage_timings = predict_with_timings(image_bytes)
     except ImageDownloadError as exc:
         latency_ms = max(0, round((perf_counter() - started_at) * 1000))
         PERFORMANCE_METRICS.record(modality, latency_ms, success=False)
@@ -115,6 +134,18 @@ def _infer(
         round((perf_counter() - started_at) * 1000),
     )
     PERFORMANCE_METRICS.record(modality, latency_ms, success=True)
+    server_timings = {
+        "download": download_ms,
+        "quality": stage_timings.get("quality_ms"),
+        "defect": stage_timings.get("defect_ms"),
+        "pipeline": stage_timings["pipeline_ms"],
+        "total": latency_ms,
+    }
+    response.headers["Server-Timing"] = ", ".join(
+        f"{name};dur={duration}"
+        for name, duration in server_timings.items()
+        if duration is not None
+    )
 
     return {
         "inspection_id": req.inspection_id,
@@ -124,13 +155,13 @@ def _infer(
 
 
 @app.post("/infer/ct", response_model=InferResponse)
-def infer_ct(req: InferRequest) -> dict:
-    return _infer(req, "ct", CT_ADAPTER, CT_ADAPTER_ERROR)
+def infer_ct(req: InferRequest, response: Response) -> dict:
+    return _infer(req, "ct", CT_ADAPTER, CT_ADAPTER_ERROR, response)
 
 
 @app.post("/infer/rgb", response_model=InferResponse)
-def infer_rgb(req: InferRequest) -> dict:
-    return _infer(req, "rgb", RGB_ADAPTER, RGB_ADAPTER_ERROR)
+def infer_rgb(req: InferRequest, response: Response) -> dict:
+    return _infer(req, "rgb", RGB_ADAPTER, RGB_ADAPTER_ERROR, response)
 
 
 @app.post(
