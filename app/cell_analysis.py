@@ -16,6 +16,8 @@ from app.schemas import (
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_CAPTURE_FAIL_RATIO_THRESHOLD = 0.05
+
 
 # Proposed by infra and still awaiting formal backend confirmation. Keep the
 # four situation-to-contract rows centralized here so callback behavior cannot
@@ -59,8 +61,6 @@ def _callback_defects(defects: list[dict]) -> list[CallbackDefect]:
 
 def _final_label(results: list[ImageAnalysisResult]) -> str:
     labels = {result.label for result in results}
-    if "FAIL" in labels:
-        return "FAIL"
     if "REJECT" in labels:
         return "REJECT"
     return "PASS"
@@ -82,14 +82,24 @@ def _cell_confidence(
     return max(decisive)
 
 
-def _callback_situation(results: list[ImageAnalysisResult]) -> str:
+def _capture_fail_ratio(results: list[ImageAnalysisResult]) -> float:
+    if not results:
+        return 0.0
+    failed = sum(result.label == "FAIL" for result in results)
+    return failed / len(results)
+
+
+def _callback_situation(
+    results: list[ImageAnalysisResult],
+    capture_fail_ratio_threshold: float,
+) -> str:
     if any(
         result.error_code == "IMAGE_DOWNLOAD_FAILED" for result in results
     ):
         return "image_download_failure"
     if any(result.error_code for result in results):
         return "model_load_or_inference_failure"
-    if any(result.label == "FAIL" for result in results):
+    if _capture_fail_ratio(results) >= capture_fail_ratio_threshold:
         return "capture_or_quality_fail"
     return "normal_completion"
 
@@ -101,10 +111,16 @@ def _failure_reason(
     if situation == "normal_completion":
         return None
     if situation == "capture_or_quality_fail":
-        return "; ".join(
-            f"image {result.image_id}: CAPTURE_OR_QUALITY_FAIL"
+        failed_ids = [
+            str(result.image_id)
             for result in results
             if result.label == "FAIL"
+        ]
+        return (
+            "capture quality fail ratio "
+            f"{len(failed_ids)}/{len(results)} "
+            f"({_capture_fail_ratio(results):.2%}); "
+            f"imageIds={','.join(failed_ids)}"
         )
     return "; ".join(
         f"image {result.image_id}: {result.error_code}"
@@ -154,6 +170,9 @@ def _analyze_image(image, adapter: InferenceAdapter) -> ImageAnalysisResult:
 def build_callback(
     request: CellAnalysisRequest,
     adapters: dict[str, InferenceAdapter | None],
+    capture_fail_ratio_threshold: float = (
+        DEFAULT_CAPTURE_FAIL_RATIO_THRESHOLD
+    ),
 ) -> CellAnalysisCallback:
     results: list[ImageAnalysisResult] = []
     for image in request.images:
@@ -173,7 +192,10 @@ def build_callback(
             continue
         results.append(_analyze_image(image, adapter))
 
-    situation = _callback_situation(results)
+    situation = _callback_situation(
+        results,
+        capture_fail_ratio_threshold,
+    )
     contract = ASSUMED_BACKEND_CALLBACK_MAPPING[situation]
     cell_status = contract["cell_status"]
     failure_type = contract["failure_type"]
@@ -243,8 +265,15 @@ def process_cell_analysis(
     internal_api_key: str,
     callback_timeout_seconds: float,
     callback_max_attempts: int,
+    capture_fail_ratio_threshold: float = (
+        DEFAULT_CAPTURE_FAIL_RATIO_THRESHOLD
+    ),
 ) -> None:
-    callback = build_callback(request, adapters)
+    callback = build_callback(
+        request,
+        adapters,
+        capture_fail_ratio_threshold,
+    )
     send_callback(
         request.callback_url,
         callback,

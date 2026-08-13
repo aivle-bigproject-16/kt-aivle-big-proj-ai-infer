@@ -112,6 +112,21 @@ class RaisingAdapter:
         raise RuntimeError("inference exploded")
 
 
+class ContentQualityAdapter:
+    def predict(self, image_bytes):
+        if image_bytes == b"fail":
+            label = "FAIL"
+        elif image_bytes == b"reject":
+            label = "REJECT"
+        else:
+            label = "PASS"
+        return {
+            "label": label,
+            "confidence": 0.9,
+            "defects": [],
+        }
+
+
 def test_callback_matches_backend_dto_and_reject_wins(monkeypatch):
     monkeypatch.setattr(
         "app.cell_analysis.download_s3_image",
@@ -177,8 +192,87 @@ def test_callback_mapping_row_1_quality_fail_is_capture_failure(monkeypatch):
     body = callback.model_dump(mode="json", by_alias=True)
     assert body["cellStatus"] == "FAILED"
     assert body["failureType"] == "CAPTURE"
-    assert body["failureReason"] == "image 40: CAPTURE_OR_QUALITY_FAIL"
+    assert body["failureReason"] == (
+        "capture quality fail ratio 1/1 (100.00%); imageIds=40"
+    )
     assert body["finalLabel"] is None
+
+
+@pytest.mark.parametrize(
+    ("image_count", "expected_status", "expected_label"),
+    [
+        (20, "FAILED", None),
+        (21, "COMPLETED", "PASS"),
+    ],
+    ids=["exactly-five-percent-fails", "below-five-percent-passes"],
+)
+def test_capture_quality_uses_five_percent_cell_ratio(
+    monkeypatch,
+    image_count,
+    expected_status,
+    expected_label,
+):
+    monkeypatch.setattr(
+        "app.cell_analysis.download_s3_image",
+        lambda bucket, key: b"fail" if key == "fail.jpg" else b"pass",
+    )
+    images = [
+        {
+            "imageId": 100 + index,
+            "imageType": "RGB",
+            "bucketName": "image-bucket",
+            "objectKey": (
+                "fail.jpg" if index == 0 else f"pass-{index}.jpg"
+            ),
+        }
+        for index in range(image_count)
+    ]
+    request = CellAnalysisRequest.model_validate({
+        **REQUEST,
+        "images": images,
+    })
+
+    callback = build_callback(
+        request,
+        {"RGB": ContentQualityAdapter()},
+        capture_fail_ratio_threshold=0.05,
+    )
+
+    body = callback.model_dump(mode="json", by_alias=True)
+    assert body["cellStatus"] == expected_status
+    assert body["finalLabel"] == expected_label
+
+
+def test_below_threshold_capture_fail_does_not_hide_reject(monkeypatch):
+    monkeypatch.setattr(
+        "app.cell_analysis.download_s3_image",
+        lambda bucket, key: key.encode(),
+    )
+    images = [
+        {
+            "imageId": 200 + index,
+            "imageType": "RGB",
+            "bucketName": "image-bucket",
+            "objectKey": (
+                "fail" if index == 0 else "reject" if index == 1 else "pass"
+            ),
+        }
+        for index in range(21)
+    ]
+    request = CellAnalysisRequest.model_validate({
+        **REQUEST,
+        "images": images,
+    })
+
+    callback = build_callback(
+        request,
+        {"RGB": ContentQualityAdapter()},
+        capture_fail_ratio_threshold=0.05,
+    )
+
+    body = callback.model_dump(mode="json", by_alias=True)
+    assert body["cellStatus"] == "COMPLETED"
+    assert body["finalLabel"] == "REJECT"
 
 
 def test_callback_mapping_row_2_download_failure_is_ai_failure(monkeypatch):
