@@ -1,0 +1,95 @@
+name: Build and deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: kt-aivle-big-proj-ai-infer
+  DEPLOY_SERVICE: ai-infer
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.2.3
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: "825555019742"
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2.1.6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.2.0
+
+      - name: Build and push image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./docker/Dockerfile.gpu-onnx
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha,scope=ai-infer
+          cache-to: type=gha,mode=max,scope=ai-infer
+
+      - name: Deploy through Systems Manager
+        env:
+          INSTANCE_ID: ${{ vars.AWS_DEPLOY_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+
+          parameters=$(jq -cn \
+            --arg service "$DEPLOY_SERVICE" \
+            --arg tag "$GITHUB_SHA" \
+            '{Service: [$service], ImageTag: [$tag]}')
+
+          command_id=$(aws ssm send-command \
+            --region "$AWS_REGION" \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AivleBigProjectDeployService \
+            --comment "Deploy $GITHUB_REPOSITORY@$GITHUB_SHA" \
+            --parameters "$parameters" \
+            --query 'Command.CommandId' \
+            --output text)
+
+          status=Pending
+          for _ in $(seq 1 180); do
+            status=$(aws ssm get-command-invocation \
+              --region "$AWS_REGION" \
+              --command-id "$command_id" \
+              --instance-id "$INSTANCE_ID" \
+              --query 'Status' \
+              --output text 2>/dev/null || printf 'Pending')
+
+            case "$status" in
+              Success|Cancelled|TimedOut|Failed|Cancelling) break ;;
+            esac
+            sleep 10
+          done
+
+          aws ssm get-command-invocation \
+            --region "$AWS_REGION" \
+            --command-id "$command_id" \
+            --instance-id "$INSTANCE_ID"
+
+          test "$status" = Success
