@@ -7,12 +7,13 @@ from functools import partial
 from threading import BoundedSemaphore
 from time import perf_counter, sleep
 
-from fastapi import FastAPI, Header, HTTPException, status
+from fastapi import FastAPI, Header, HTTPException, Response, status
 
 from app.adapters.factory import build_adapter
 from app.adapters.base import InferenceAdapter
 from app.cell_analysis import process_cell_analysis
 from app.download.http_image import ImageDownloadError, download_image
+from app.performance_metrics import PerformanceMetrics
 from app.schemas import (
     CellAnalysisAccepted,
     CellAnalysisRequest,
@@ -28,6 +29,7 @@ LATENCY_MS = int(os.getenv("STUB_LATENCY_MS", "800"))
 SETTINGS = load_settings()
 
 app = FastAPI(title="ai-infer")
+PERFORMANCE_METRICS = PerformanceMetrics(("ct", "rgb"))
 
 
 def _build(modality: str) -> tuple[InferenceAdapter | None, str | None]:
@@ -64,8 +66,10 @@ def _analysis_finished(future) -> None:
 
 def _infer(
     req: InferRequest,
+    modality: str,
     adapter: InferenceAdapter | None,
     adapter_error: str | None,
+    response: Response,
 ) -> dict:
     if adapter is None:
         raise HTTPException(
@@ -74,27 +78,49 @@ def _infer(
         )
 
     started_at = perf_counter()
-
     try:
+        download_started_at = perf_counter()
         image_bytes = download_image(req.image_url)
+        download_ms = max(
+            0,
+            round((perf_counter() - download_started_at) * 1000),
+        )
+
+        if SETTINGS.inference_mode == "stub":
+            sleep(LATENCY_MS / 1000)
+
+        predict_with_timings = getattr(adapter, "predict_with_timings", None)
+        if predict_with_timings is None:
+            prediction_started_at = perf_counter()
+            prediction = adapter.predict(image_bytes)
+            stage_timings = {
+                "pipeline_ms": max(
+                    0,
+                    round(
+                        (perf_counter() - prediction_started_at) * 1000
+                    ),
+                ),
+            }
+        else:
+            prediction, stage_timings = predict_with_timings(image_bytes)
     except ImageDownloadError as exc:
+        latency_ms = max(0, round((perf_counter() - started_at) * 1000))
+        PERFORMANCE_METRICS.record(modality, latency_ms, success=False)
         raise HTTPException(
             status_code=502,
             detail="failed to download inference image",
         ) from exc
-
-    if SETTINGS.inference_mode == "stub":
-        sleep(LATENCY_MS / 1000)
-
-    try:
-        prediction = adapter.predict(image_bytes)
     except ValueError as exc:
+        latency_ms = max(0, round((perf_counter() - started_at) * 1000))
+        PERFORMANCE_METRICS.record(modality, latency_ms, success=False)
         # 전처리가 거부한 이미지다. 서버 잘못이 아니므로 4xx 로 답한다.
         raise HTTPException(
             status_code=422,
             detail="unprocessable inference image",
         ) from exc
     except Exception as exc:
+        latency_ms = max(0, round((perf_counter() - started_at) * 1000))
+        PERFORMANCE_METRICS.record(modality, latency_ms, success=False)
         logger.exception(
             "inference failed for inspection %s", req.inspection_id
         )
@@ -107,6 +133,19 @@ def _infer(
         0,
         round((perf_counter() - started_at) * 1000),
     )
+    PERFORMANCE_METRICS.record(modality, latency_ms, success=True)
+    server_timings = {
+        "download": download_ms,
+        "quality": stage_timings.get("quality_ms"),
+        "defect": stage_timings.get("defect_ms"),
+        "pipeline": stage_timings["pipeline_ms"],
+        "total": latency_ms,
+    }
+    response.headers["Server-Timing"] = ", ".join(
+        f"{name};dur={duration}"
+        for name, duration in server_timings.items()
+        if duration is not None
+    )
 
     return {
         "inspection_id": req.inspection_id,
@@ -116,13 +155,13 @@ def _infer(
 
 
 @app.post("/infer/ct", response_model=InferResponse)
-def infer_ct(req: InferRequest) -> dict:
-    return _infer(req, CT_ADAPTER, CT_ADAPTER_ERROR)
+def infer_ct(req: InferRequest, response: Response) -> dict:
+    return _infer(req, "ct", CT_ADAPTER, CT_ADAPTER_ERROR, response)
 
 
 @app.post("/infer/rgb", response_model=InferResponse)
-def infer_rgb(req: InferRequest) -> dict:
-    return _infer(req, RGB_ADAPTER, RGB_ADAPTER_ERROR)
+def infer_rgb(req: InferRequest, response: Response) -> dict:
+    return _infer(req, "rgb", RGB_ADAPTER, RGB_ADAPTER_ERROR, response)
 
 
 @app.post(
@@ -214,3 +253,8 @@ def health() -> dict:
         "models": models,
         "details": details,
     }
+
+
+@app.get("/metrics/performance")
+def performance_metrics() -> dict:
+    return PERFORMANCE_METRICS.snapshot()
