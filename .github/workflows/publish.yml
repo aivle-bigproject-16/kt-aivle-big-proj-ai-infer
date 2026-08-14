@@ -47,9 +47,9 @@ jobs:
             type=raw,value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=sha
 
-      # 배포 대상은 EC2 g6e.xlarge 하나뿐이고 그 CPU 는 AMD EPYC x86_64 다.
-      # arm64 를 함께 굽던 것은 QEMU 에뮬레이션이라 매우 느린데 받아 쓰는 곳이 없었다.
-      # arm64 러너가 필요해지면 그때 다시 넣는다.
+      # 배포 대상은 EC2 GPU 인스턴스뿐이고(프로덕션 g4dn.xlarge, 테스트 g6e.xlarge)
+      # 둘 다 CPU 는 x86_64 다. arm64 를 함께 굽던 것은 QEMU 에뮬레이션이라 매우 느린데
+      # 받아 쓰는 곳이 없었다. arm64 러너가 필요해지면 그때 다시 넣는다.
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
