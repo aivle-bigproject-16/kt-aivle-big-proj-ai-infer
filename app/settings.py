@@ -25,7 +25,9 @@ class Settings:
     ct_defect_conf_threshold: float = DEFAULT_CONF_THRESHOLD
     ct_quality_threshold: float = CT_QUALITY_THRESHOLD
     rgb_quality_fail_threshold: float = RGB_QUALITY_FAIL_THRESHOLD
-    cell_capture_fail_ratio_threshold: float = 0.05
+    cell_min_valid_coverage: float = 0.8
+    rgb_cell_reject_rate_threshold: float = 0.7
+    ct_quality_gate_mode: str = "enforce"
 
 
 def _float_env(name: str, default: float) -> float:
@@ -106,13 +108,29 @@ def load_settings() -> Settings:
         "RGB_QUALITY_FAIL_THRESHOLD",
         RGB_QUALITY_FAIL_THRESHOLD,
     )
-    cell_capture_fail_ratio_threshold = _unit_interval_env(
-        "CELL_CAPTURE_FAIL_RATIO_THRESHOLD",
-        0.05,
+    cell_min_valid_coverage = _unit_interval_env(
+        "CELL_MIN_VALID_COVERAGE",
+        0.8,
     )
-    if cell_capture_fail_ratio_threshold == 0.0:
+    if cell_min_valid_coverage == 0.0:
         raise ValueError(
-            "CELL_CAPTURE_FAIL_RATIO_THRESHOLD must be greater than 0"
+            "CELL_MIN_VALID_COVERAGE must be greater than 0"
+        )
+    rgb_cell_reject_rate_threshold = _unit_interval_env(
+        "RGB_CELL_REJECT_RATE_THRESHOLD",
+        0.7,
+    )
+    if rgb_cell_reject_rate_threshold == 0.0:
+        raise ValueError(
+            "RGB_CELL_REJECT_RATE_THRESHOLD must be greater than 0"
+        )
+    ct_quality_gate_mode = os.getenv(
+        "CT_QUALITY_GATE_MODE",
+        "enforce",
+    ).strip().lower()
+    if ct_quality_gate_mode not in {"enforce", "shadow"}:
+        raise ValueError(
+            "CT_QUALITY_GATE_MODE must be enforce or shadow"
         )
     # CT 품질 모델은 확률이 아니라 로짓을 비교하므로 [0,1] 제약을 걸지 않는다.
     ct_quality_threshold = _float_env(
@@ -159,7 +177,9 @@ def load_settings() -> Settings:
         ct_defect_conf_threshold=ct_defect_conf_threshold,
         ct_quality_threshold=ct_quality_threshold,
         rgb_quality_fail_threshold=rgb_quality_fail_threshold,
-        cell_capture_fail_ratio_threshold=(
-            cell_capture_fail_ratio_threshold
+        cell_min_valid_coverage=cell_min_valid_coverage,
+        rgb_cell_reject_rate_threshold=(
+            rgb_cell_reject_rate_threshold
         ),
+        ct_quality_gate_mode=ct_quality_gate_mode,
     )

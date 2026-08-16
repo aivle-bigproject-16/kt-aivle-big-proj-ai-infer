@@ -133,4 +133,9 @@ def build_adapter(
     return InferencePipeline(
         quality_adapter=quality_adapter,
         defect_adapter=defect_adapter,
+        quality_gate_mode=(
+            settings.ct_quality_gate_mode
+            if modality == "ct"
+            else "enforce"
+        ),
     )

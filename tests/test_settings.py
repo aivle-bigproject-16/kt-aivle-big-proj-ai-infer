@@ -52,20 +52,53 @@ def test_invalid_ct_postprocess_metric_is_rejected(monkeypatch):
         load_settings()
 
 
-def test_cell_capture_fail_ratio_threshold_defaults_to_five_percent(
+def test_cell_min_valid_coverage_defaults_to_eighty_percent(
     monkeypatch,
 ):
-    monkeypatch.delenv("CELL_CAPTURE_FAIL_RATIO_THRESHOLD", raising=False)
+    monkeypatch.delenv("CELL_MIN_VALID_COVERAGE", raising=False)
 
-    assert load_settings().cell_capture_fail_ratio_threshold == 0.05
+    assert load_settings().cell_min_valid_coverage == 0.8
 
 
 @pytest.mark.parametrize("value", ["0", "1.1", "-0.1"])
-def test_invalid_cell_capture_fail_ratio_threshold_is_rejected(
+def test_invalid_cell_min_valid_coverage_is_rejected(
     monkeypatch,
     value,
 ):
-    monkeypatch.setenv("CELL_CAPTURE_FAIL_RATIO_THRESHOLD", value)
+    monkeypatch.setenv("CELL_MIN_VALID_COVERAGE", value)
 
     with pytest.raises(ValueError):
+        load_settings()
+
+
+def test_rgb_cell_reject_rate_defaults_to_seventy_percent(monkeypatch):
+    monkeypatch.delenv("RGB_CELL_REJECT_RATE_THRESHOLD", raising=False)
+
+    assert load_settings().rgb_cell_reject_rate_threshold == 0.7
+
+
+@pytest.mark.parametrize("value", ["0", "1.1", "-0.1"])
+def test_invalid_rgb_cell_reject_rate_is_rejected(monkeypatch, value):
+    monkeypatch.setenv("RGB_CELL_REJECT_RATE_THRESHOLD", value)
+
+    with pytest.raises(ValueError, match="RGB_CELL_REJECT_RATE_THRESHOLD"):
+        load_settings()
+
+
+def test_ct_quality_gate_defaults_to_enforce(monkeypatch):
+    monkeypatch.delenv("CT_QUALITY_GATE_MODE", raising=False)
+
+    assert load_settings().ct_quality_gate_mode == "enforce"
+
+
+def test_ct_quality_gate_accepts_shadow(monkeypatch):
+    monkeypatch.setenv("CT_QUALITY_GATE_MODE", "shadow")
+
+    assert load_settings().ct_quality_gate_mode == "shadow"
+
+
+def test_invalid_ct_quality_gate_is_rejected(monkeypatch):
+    monkeypatch.setenv("CT_QUALITY_GATE_MODE", "bypass")
+
+    with pytest.raises(ValueError, match="CT_QUALITY_GATE_MODE"):
         load_settings()

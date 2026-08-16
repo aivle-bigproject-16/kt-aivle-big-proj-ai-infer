@@ -108,8 +108,11 @@ class FixedAdapter:
 
 
 class RaisingAdapter:
+    def __init__(self, error=None):
+        self.error = error or RuntimeError("inference exploded")
+
     def predict(self, image_bytes):
-        raise RuntimeError("inference exploded")
+        raise self.error
 
 
 class ContentQualityAdapter:
@@ -193,22 +196,22 @@ def test_callback_mapping_row_1_quality_fail_is_capture_failure(monkeypatch):
     assert body["cellStatus"] == "FAILED"
     assert body["failureType"] == "CAPTURE"
     assert body["failureReason"] == (
-        "capture quality fail ratio 1/1 (100.00%); imageIds=40"
+        "RGB valid coverage 0/1 (0.00%); failedCount=1"
     )
     assert body["finalLabel"] is None
 
 
 @pytest.mark.parametrize(
-    ("image_count", "expected_status", "expected_label"),
+    ("valid_count", "expected_status", "expected_label"),
     [
-        (20, "FAILED", None),
-        (21, "COMPLETED", "PASS"),
+        (31, "FAILED", None),
+        (32, "COMPLETED", "PASS"),
     ],
-    ids=["exactly-five-percent-fails", "below-five-percent-passes"],
+    ids=["below-32-of-40-fails", "exactly-32-of-40-passes"],
 )
-def test_capture_quality_uses_five_percent_cell_ratio(
+def test_capture_quality_uses_eighty_percent_modality_coverage(
     monkeypatch,
-    image_count,
+    valid_count,
     expected_status,
     expected_label,
 ):
@@ -221,11 +224,9 @@ def test_capture_quality_uses_five_percent_cell_ratio(
             "imageId": 100 + index,
             "imageType": "RGB",
             "bucketName": "image-bucket",
-            "objectKey": (
-                "fail.jpg" if index == 0 else f"pass-{index}.jpg"
-            ),
+            "objectKey": f"pass-{index}.jpg" if index < valid_count else "fail.jpg",
         }
-        for index in range(image_count)
+        for index in range(40)
     ]
     request = CellAnalysisRequest.model_validate({
         **REQUEST,
@@ -235,7 +236,7 @@ def test_capture_quality_uses_five_percent_cell_ratio(
     callback = build_callback(
         request,
         {"RGB": ContentQualityAdapter()},
-        capture_fail_ratio_threshold=0.05,
+        minimum_valid_coverage=0.8,
     )
 
     body = callback.model_dump(mode="json", by_alias=True)
@@ -243,7 +244,49 @@ def test_capture_quality_uses_five_percent_cell_ratio(
     assert body["finalLabel"] == expected_label
 
 
-def test_below_threshold_capture_fail_does_not_hide_reject(monkeypatch):
+@pytest.mark.parametrize(
+    ("gate_mode", "expected_status"),
+    [("shadow", "COMPLETED"), ("enforce", "FAILED")],
+)
+def test_cell_coverage_respects_quality_gate_mode(
+    monkeypatch,
+    gate_mode,
+    expected_status,
+):
+    monkeypatch.setattr(
+        "app.cell_analysis.download_s3_image",
+        lambda bucket, key: b"image",
+    )
+    callback = build_callback(
+        CellAnalysisRequest.model_validate(REQUEST),
+        {
+            "RGB": FixedAdapter({
+                "label": "PASS",
+                "confidence": 0.9,
+                "defects": [],
+                "quality": {
+                    "label": "FAIL",
+                    "confidence": 0.8,
+                    "gateMode": gate_mode,
+                },
+            }),
+        },
+    )
+
+    body = callback.model_dump(mode="json", by_alias=True)
+    assert body["cellStatus"] == expected_status
+
+
+@pytest.mark.parametrize(
+    ("reject_count", "expected_label"),
+    [(27, "PASS"), (28, "REJECT")],
+    ids=["below-70-percent-passes", "exactly-70-percent-rejects"],
+)
+def test_rgb_cell_uses_seventy_percent_reject_rate(
+    monkeypatch,
+    reject_count,
+    expected_label,
+):
     monkeypatch.setattr(
         "app.cell_analysis.download_s3_image",
         lambda bucket, key: key.encode(),
@@ -253,11 +296,9 @@ def test_below_threshold_capture_fail_does_not_hide_reject(monkeypatch):
             "imageId": 200 + index,
             "imageType": "RGB",
             "bucketName": "image-bucket",
-            "objectKey": (
-                "fail" if index == 0 else "reject" if index == 1 else "pass"
-            ),
+            "objectKey": "reject" if index < reject_count else "pass",
         }
-        for index in range(21)
+        for index in range(40)
     ]
     request = CellAnalysisRequest.model_validate({
         **REQUEST,
@@ -267,12 +308,107 @@ def test_below_threshold_capture_fail_does_not_hide_reject(monkeypatch):
     callback = build_callback(
         request,
         {"RGB": ContentQualityAdapter()},
-        capture_fail_ratio_threshold=0.05,
+        minimum_valid_coverage=0.8,
+    )
+
+    body = callback.model_dump(mode="json", by_alias=True)
+    assert body["cellStatus"] == "COMPLETED"
+    assert body["finalLabel"] == expected_label
+
+
+def test_rgb_reject_rate_uses_all_requested_images_as_denominator(monkeypatch):
+    monkeypatch.setattr(
+        "app.cell_analysis.download_s3_image",
+        lambda bucket, key: key.encode(),
+    )
+    object_keys = ["fail"] * 8 + ["reject"] * 28 + ["pass"] * 4
+    request = CellAnalysisRequest.model_validate({
+        **REQUEST,
+        "images": [
+            {
+                "imageId": 300 + index,
+                "imageType": "RGB",
+                "bucketName": "image-bucket",
+                "objectKey": object_key,
+            }
+            for index, object_key in enumerate(object_keys)
+        ],
+    })
+
+    callback = build_callback(
+        request,
+        {"RGB": ContentQualityAdapter()},
+        minimum_valid_coverage=0.8,
+        rgb_reject_rate_threshold=0.7,
     )
 
     body = callback.model_dump(mode="json", by_alias=True)
     assert body["cellStatus"] == "COMPLETED"
     assert body["finalLabel"] == "REJECT"
+
+
+def test_ct_keeps_any_reject_cell_rule(monkeypatch):
+    monkeypatch.setattr(
+        "app.cell_analysis.download_s3_image",
+        lambda bucket, key: key.encode(),
+    )
+    request = CellAnalysisRequest.model_validate({
+        **REQUEST,
+        "images": [
+            {
+                "imageId": 400 + index,
+                "imageType": "CT",
+                "bucketName": "image-bucket",
+                "objectKey": "reject" if index == 0 else "pass",
+            }
+            for index in range(40)
+        ],
+    })
+
+    callback = build_callback(
+        request,
+        {"CT": ContentQualityAdapter()},
+    )
+
+    body = callback.model_dump(mode="json", by_alias=True)
+    assert body["cellStatus"] == "COMPLETED"
+    assert body["finalLabel"] == "REJECT"
+
+
+def test_quality_coverage_is_evaluated_per_modality(monkeypatch):
+    monkeypatch.setattr(
+        "app.cell_analysis.download_s3_image",
+        lambda bucket, key: key.encode(),
+    )
+    images = []
+    for image_type in ("CT", "RGB"):
+        for index in range(40):
+            is_ct_fail = image_type == "CT" and index >= 31
+            images.append({
+                "imageId": len(images) + 1,
+                "imageType": image_type,
+                "bucketName": "image-bucket",
+                "objectKey": "fail" if is_ct_fail else "pass",
+            })
+    request = CellAnalysisRequest.model_validate({
+        **REQUEST,
+        "images": images,
+    })
+
+    callback = build_callback(
+        request,
+        {
+            "CT": ContentQualityAdapter(),
+            "RGB": ContentQualityAdapter(),
+        },
+        minimum_valid_coverage=0.8,
+    )
+
+    body = callback.model_dump(mode="json", by_alias=True)
+    assert body["cellStatus"] == "FAILED"
+    assert body["failureType"] == "CAPTURE"
+    assert "CT valid coverage 31/40" in body["failureReason"]
+    assert "RGB valid coverage 40/40" in body["failureReason"]
 
 
 def test_callback_mapping_row_2_download_failure_is_ai_failure(monkeypatch):
@@ -301,8 +437,13 @@ def test_callback_mapping_row_2_download_failure_is_ai_failure(monkeypatch):
     [
         (None, "ADAPTER_UNAVAILABLE"),
         (RaisingAdapter(), "INFERENCE_FAILED"),
+        (RaisingAdapter(TimeoutError("too slow")), "INFERENCE_TIMEOUT"),
+        (
+            RaisingAdapter(RuntimeError("CUDA out of memory")),
+            "INFERENCE_RESOURCE_EXHAUSTED",
+        ),
     ],
-    ids=["model-load", "inference"],
+    ids=["model-load", "inference", "timeout", "resource-exhausted"],
 )
 def test_callback_mapping_row_3_model_or_inference_failure_is_ai_failure(
     monkeypatch,
