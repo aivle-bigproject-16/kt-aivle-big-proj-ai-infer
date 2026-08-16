@@ -147,9 +147,14 @@ def _infer(
         if duration is not None
     )
 
+    public_prediction = {
+        key: value
+        for key, value in prediction.items()
+        if key != "quality"
+    }
     return {
         "inspection_id": req.inspection_id,
-        **prediction,
+        **public_prediction,
         "latency_ms": latency_ms,
     }
 
@@ -208,7 +213,8 @@ def analyze_cell(
                 SETTINGS.internal_api_key,
                 SETTINGS.callback_timeout_seconds,
                 SETTINGS.callback_max_attempts,
-                SETTINGS.cell_capture_fail_ratio_threshold,
+                SETTINGS.cell_min_valid_coverage,
+                SETTINGS.rgb_cell_reject_rate_threshold,
             )
         )
     except Exception:

@@ -104,9 +104,15 @@ class InferencePipeline:
         self,
         quality_adapter: QualityAdapter,
         defect_adapter: DefectAdapter,
+        quality_gate_mode: str = "enforce",
     ):
+        if quality_gate_mode not in {"enforce", "shadow"}:
+            raise ValueError(
+                "quality_gate_mode must be enforce or shadow"
+            )
         self.quality_adapter = quality_adapter
         self.defect_adapter = defect_adapter
+        self.quality_gate_mode = quality_gate_mode
 
     def predict(self, image_bytes: bytes) -> dict:
         prediction, _ = self.predict_with_timings(image_bytes)
@@ -124,11 +130,20 @@ class InferencePipeline:
             round((perf_counter() - quality_started_at) * 1000),
         )
 
-        if quality["label"] == "FAIL":
+        quality_observation = {
+            **quality,
+            "gateMode": self.quality_gate_mode,
+        }
+
+        if (
+            quality["label"] == "FAIL"
+            and self.quality_gate_mode == "enforce"
+        ):
             prediction = {
                 "label": "FAIL",
                 "confidence": quality["confidence"],
                 "defects": [],
+                "quality": quality_observation,
             }
             timings = {
                 "quality_ms": quality_ms,
@@ -141,6 +156,10 @@ class InferencePipeline:
 
         defect_started_at = perf_counter()
         prediction = self.defect_adapter.predict_defects(image_bytes)
+        prediction = {
+            **prediction,
+            "quality": quality_observation,
+        }
         defect_ms = max(
             0,
             round((perf_counter() - defect_started_at) * 1000),

@@ -39,6 +39,11 @@ def test_fail_skips_defect_inference():
         "label": "FAIL",
         "confidence": 0.8,
         "defects": [],
+        "quality": {
+            "label": "FAIL",
+            "confidence": 0.8,
+            "gateMode": "enforce",
+        },
     }
     assert defect.called is False
 
@@ -79,3 +84,22 @@ def test_fail_timing_omits_skipped_defect_stage():
     _, timings = pipeline.predict_with_timings(b"image")
 
     assert set(timings) == {"quality_ms", "pipeline_ms"}
+
+
+def test_shadow_quality_fail_runs_defect_and_keeps_observation():
+    defect = RecordingDefectAdapter()
+    pipeline = InferencePipeline(
+        quality_adapter=FixedQualityAdapter("FAIL", 0.8),
+        defect_adapter=defect,
+        quality_gate_mode="shadow",
+    )
+
+    result = pipeline.predict(b"image")
+
+    assert result["label"] == "REJECT"
+    assert result["quality"] == {
+        "label": "FAIL",
+        "confidence": 0.8,
+        "gateMode": "shadow",
+    }
+    assert defect.called is True

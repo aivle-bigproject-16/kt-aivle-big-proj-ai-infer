@@ -16,7 +16,8 @@ from app.schemas import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CAPTURE_FAIL_RATIO_THRESHOLD = 0.05
+DEFAULT_MIN_VALID_COVERAGE = 0.8
+DEFAULT_RGB_CELL_REJECT_RATE_THRESHOLD = 0.7
 
 
 # Proposed by infra and still awaiting formal backend confirmation. Keep the
@@ -59,10 +60,22 @@ def _callback_defects(defects: list[dict]) -> list[CallbackDefect]:
     return converted
 
 
-def _final_label(results: list[ImageAnalysisResult]) -> str:
-    labels = {result.label for result in results}
-    if "REJECT" in labels:
-        return "REJECT"
+def _final_label(
+    results: list[ImageAnalysisResult],
+    rgb_reject_rate_threshold: float,
+) -> str:
+    for image_type in {result.image_type for result in results}:
+        modality_results = [
+            result for result in results if result.image_type == image_type
+        ]
+        reject_count = sum(
+            result.label == "REJECT" for result in modality_results
+        )
+        if image_type == "RGB":
+            if reject_count / len(modality_results) >= rgb_reject_rate_threshold:
+                return "REJECT"
+        elif reject_count:
+            return "REJECT"
     return "PASS"
 
 
@@ -82,16 +95,48 @@ def _cell_confidence(
     return max(decisive)
 
 
-def _capture_fail_ratio(results: list[ImageAnalysisResult]) -> float:
-    if not results:
-        return 0.0
-    failed = sum(result.label == "FAIL" for result in results)
-    return failed / len(results)
+def _quality_label(result: ImageAnalysisResult) -> str:
+    if result.raw_response:
+        quality = result.raw_response.get("quality")
+        if isinstance(quality, dict) and quality.get("label") in {
+            "PASS",
+            "FAIL",
+        }:
+            if quality.get("gateMode") == "shadow":
+                return "PASS"
+            return quality["label"]
+    return "FAIL" if result.label == "FAIL" else "PASS"
+
+
+def _modality_coverage(
+    results: list[ImageAnalysisResult],
+) -> dict[str, tuple[int, int]]:
+    coverage: dict[str, tuple[int, int]] = {}
+    for image_type in sorted({result.image_type for result in results}):
+        modality_results = [
+            result for result in results if result.image_type == image_type
+        ]
+        valid = sum(
+            _quality_label(result) == "PASS"
+            for result in modality_results
+        )
+        coverage[image_type] = (valid, len(modality_results))
+    return coverage
+
+
+def _has_insufficient_coverage(
+    results: list[ImageAnalysisResult],
+    minimum_valid_coverage: float,
+) -> bool:
+    return any(
+        total == 0 or valid / total < minimum_valid_coverage
+        for valid, total in _modality_coverage(results).values()
+    )
 
 
 def _callback_situation(
     results: list[ImageAnalysisResult],
-    capture_fail_ratio_threshold: float,
+    minimum_valid_coverage: float,
 ) -> str:
     if any(
         result.error_code == "IMAGE_DOWNLOAD_FAILED" for result in results
@@ -99,7 +144,7 @@ def _callback_situation(
         return "image_download_failure"
     if any(result.error_code for result in results):
         return "model_load_or_inference_failure"
-    if _capture_fail_ratio(results) >= capture_fail_ratio_threshold:
+    if _has_insufficient_coverage(results, minimum_valid_coverage):
         return "capture_or_quality_fail"
     return "normal_completion"
 
@@ -111,17 +156,15 @@ def _failure_reason(
     if situation == "normal_completion":
         return None
     if situation == "capture_or_quality_fail":
-        failed_ids = [
-            str(result.image_id)
-            for result in results
-            if result.label == "FAIL"
-        ]
-        return (
-            "capture quality fail ratio "
-            f"{len(failed_ids)}/{len(results)} "
-            f"({_capture_fail_ratio(results):.2%}); "
-            f"imageIds={','.join(failed_ids)}"
-        )
+        summaries = []
+        for image_type, (valid, total) in _modality_coverage(results).items():
+            failed_count = total - valid
+            summaries.append(
+                f"{image_type} valid coverage {valid}/{total} "
+                f"({valid / total:.2%}); "
+                f"failedCount={failed_count}"
+            )
+        return " | ".join(summaries)
     return "; ".join(
         f"image {result.image_id}: {result.error_code}"
         for result in results
@@ -149,11 +192,21 @@ def _analyze_image(image, adapter: InferenceAdapter) -> ImageAnalysisResult:
     except Exception as exc:
         latency_ms = max(0, round((perf_counter() - started_at) * 1000))
         logger.exception("image analysis failed for image %s", image.image_id)
-        error_code = (
-            "IMAGE_DOWNLOAD_FAILED"
-            if isinstance(exc, ImageDownloadError)
-            else "INFERENCE_FAILED"
-        )
+        if isinstance(exc, ImageDownloadError):
+            error_code = "IMAGE_DOWNLOAD_FAILED"
+        elif isinstance(exc, (TimeoutError, httpx.TimeoutException)):
+            error_code = "INFERENCE_TIMEOUT"
+        elif isinstance(exc, MemoryError) or any(
+            marker in str(exc).lower()
+            for marker in (
+                "out of memory",
+                "resource exhausted",
+                "cuda error: out of memory",
+            )
+        ):
+            error_code = "INFERENCE_RESOURCE_EXHAUSTED"
+        else:
+            error_code = "INFERENCE_FAILED"
         return ImageAnalysisResult(
             image_id=image.image_id,
             image_type=image.image_type,
@@ -170,8 +223,11 @@ def _analyze_image(image, adapter: InferenceAdapter) -> ImageAnalysisResult:
 def build_callback(
     request: CellAnalysisRequest,
     adapters: dict[str, InferenceAdapter | None],
-    capture_fail_ratio_threshold: float = (
-        DEFAULT_CAPTURE_FAIL_RATIO_THRESHOLD
+    minimum_valid_coverage: float = (
+        DEFAULT_MIN_VALID_COVERAGE
+    ),
+    rgb_reject_rate_threshold: float = (
+        DEFAULT_RGB_CELL_REJECT_RATE_THRESHOLD
     ),
 ) -> CellAnalysisCallback:
     results: list[ImageAnalysisResult] = []
@@ -194,13 +250,15 @@ def build_callback(
 
     situation = _callback_situation(
         results,
-        capture_fail_ratio_threshold,
+        minimum_valid_coverage,
     )
     contract = ASSUMED_BACKEND_CALLBACK_MAPPING[situation]
     cell_status = contract["cell_status"]
     failure_type = contract["failure_type"]
     final_label = (
-        _final_label(results) if situation == "normal_completion" else None
+        _final_label(results, rgb_reject_rate_threshold)
+        if situation == "normal_completion"
+        else None
     )
     confidence = _cell_confidence(final_label or "FAIL", results)
     failure_reason = _failure_reason(situation, results)
@@ -265,14 +323,18 @@ def process_cell_analysis(
     internal_api_key: str,
     callback_timeout_seconds: float,
     callback_max_attempts: int,
-    capture_fail_ratio_threshold: float = (
-        DEFAULT_CAPTURE_FAIL_RATIO_THRESHOLD
+    minimum_valid_coverage: float = (
+        DEFAULT_MIN_VALID_COVERAGE
+    ),
+    rgb_reject_rate_threshold: float = (
+        DEFAULT_RGB_CELL_REJECT_RATE_THRESHOLD
     ),
 ) -> None:
     callback = build_callback(
         request,
         adapters,
-        capture_fail_ratio_threshold,
+        minimum_valid_coverage,
+        rgb_reject_rate_threshold,
     )
     send_callback(
         request.callback_url,
